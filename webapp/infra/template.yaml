@@ -1,0 +1,207 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: neat-graph-bedrock Web Console (Phase 1) — API, storage, auth, hosting.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: neat-graph-bedrock
+  ExistingUserPoolId:
+    Type: String
+    Description: UserPoolId output of the existing neat-graph-bedrock stack.
+  RuntimeArn:
+    Type: String
+    Description: AgentCore Runtime ARN to invoke.
+  AllowedOrigin:
+    Type: String
+    Default: "*"
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 30
+    MemorySize: 256
+
+Resources:
+  HistoryTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${ProjectName}-web-history"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - {AttributeName: PK, AttributeType: S}
+        - {AttributeName: SK, AttributeType: S}
+      KeySchema:
+        - {AttributeName: PK, KeyType: HASH}
+        - {AttributeName: SK, KeyType: RANGE}
+
+  WebApiFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${ProjectName}-web-api"
+      CodeUri: ../api/
+      Handler: handler.handler
+      Timeout: 120                                # async worker runs the agent; > API GW's 30s cap
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref HistoryTable
+          RUNTIME_ARN: !Ref RuntimeArn
+          ALLOWED_ORIGIN: !Ref AllowedOrigin
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref HistoryTable
+        - Statement:
+            - Effect: Allow
+              Action: bedrock-agentcore:InvokeAgentRuntime
+              Resource:
+                - !Ref RuntimeArn
+                - !Sub "${RuntimeArn}/runtime-endpoint/*"
+            - Effect: Allow
+              Action: lambda:InvokeFunction
+              Resource: !Sub "arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${ProjectName}-web-api"
+      Events:
+        Chat:
+          Type: HttpApi
+          Properties: {ApiId: !Ref WebApi, Method: POST, Path: /chat}
+        ChatStatus:
+          Type: HttpApi
+          Properties: {ApiId: !Ref WebApi, Method: GET, Path: "/chat/{jobId}"}
+        ListConversations:
+          Type: HttpApi
+          Properties: {ApiId: !Ref WebApi, Method: GET, Path: /conversations}
+        GetConversation:
+          Type: HttpApi
+          Properties: {ApiId: !Ref WebApi, Method: GET, Path: "/conversations/{id}"}
+        DeleteConversation:
+          Type: HttpApi
+          Properties: {ApiId: !Ref WebApi, Method: DELETE, Path: "/conversations/{id}"}
+
+  WebApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      CorsConfiguration:
+        AllowOrigins: [!Ref AllowedOrigin]
+        AllowHeaders: [authorization, content-type]
+        AllowMethods: [GET, POST, DELETE, OPTIONS]
+      Auth:
+        DefaultAuthorizer: CognitoJwt
+        Authorizers:
+          CognitoJwt:
+            IdentitySource: "$request.header.Authorization"
+            JwtConfiguration:
+              issuer: !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${ExistingUserPoolId}"
+              audience:
+                - !Ref WebAppClient
+
+  WebAppClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: !Sub "${ProjectName}-web-client"
+      UserPoolId: !Ref ExistingUserPoolId
+      GenerateSecret: false                       # public SPA client (PKCE)
+      AllowedOAuthFlows: [code]
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthScopes: [openid, email, profile]
+      SupportedIdentityProviders: [COGNITO]
+      CallbackURLs:
+        - !Sub "https://${WebDistribution.DomainName}/callback"
+        - http://localhost:3000/callback
+      LogoutURLs:
+        - !Sub "https://${WebDistribution.DomainName}/"
+        - http://localhost:3000/
+
+  SiteBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${ProjectName}-web-site-${AWS::AccountId}"
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  SiteOAC:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub "${ProjectName}-web-oac"
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  SiteRewriteFn:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub "${ProjectName}-web-rewrite"
+      AutoPublish: true
+      FunctionConfig:
+        Runtime: cloudfront-js-2.0
+        Comment: Rewrite directory/extensionless paths to index.html for static export
+      FunctionCode: |
+        function handler(event) {
+          var request = event.request;
+          var uri = request.uri;
+          if (uri.endsWith('/')) {
+            request.uri = uri + 'index.html';
+          } else if (!uri.split('/').pop().includes('.')) {
+            request.uri = uri + '/index.html';
+          }
+          return request;
+        }
+
+  WebDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        DefaultRootObject: index.html
+        Origins:
+          - Id: s3origin
+            DomainName: !GetAtt SiteBucket.RegionalDomainName
+            OriginAccessControlId: !Ref SiteOAC
+            S3OriginConfig: {OriginAccessIdentity: ""}
+        DefaultCacheBehavior:
+          TargetOriginId: s3origin
+          ViewerProtocolPolicy: redirect-to-https
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6   # AWS Managed-CachingOptimized
+          FunctionAssociations:
+            - EventType: viewer-request
+              FunctionARN: !GetAtt SiteRewriteFn.FunctionMetadata.FunctionARN
+        CustomErrorResponses:
+          - {ErrorCode: 403, ResponseCode: 200, ResponsePagePath: /index.html}
+          - {ErrorCode: 404, ResponseCode: 200, ResponsePagePath: /index.html}
+
+  SiteBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref SiteBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: {Service: cloudfront.amazonaws.com}
+            Action: s3:GetObject
+            Resource: !Sub "${SiteBucket.Arn}/*"
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/${WebDistribution}"
+
+Outputs:
+  AppClientId:
+    Value: !Ref WebAppClient
+  CognitoDomain:
+    Value: !Sub "https://${ProjectName}-${AWS::AccountId}.auth.${AWS::Region}.amazoncognito.com"
+  HostedLoginUrl:
+    Value: !Sub "https://${ProjectName}-${AWS::AccountId}.auth.${AWS::Region}.amazoncognito.com/login?client_id=${WebAppClient}&response_type=code&scope=openid+email+profile&redirect_uri=https://${WebDistribution.DomainName}/callback"
+  ApiBaseUrl:
+    Value: !Sub "https://${WebApi}.execute-api.${AWS::Region}.amazonaws.com"
+  TableName:
+    Value: !Ref HistoryTable
+  FunctionArn:
+    Value: !GetAtt WebApiFn.Arn
+  SiteBucketName:
+    Value: !Ref SiteBucket
+  SiteUrl:
+    Value: !Sub "https://${WebDistribution.DomainName}"
+  DistributionId:
+    Value: !Ref WebDistribution

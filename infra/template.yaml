@@ -1,0 +1,183 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Neat Sense x MS Graph callRecords correlation tools, plus Cisco ThousandEyes
+  network/voice test results, exposed to Bedrock via AgentCore Gateway Lambda
+  targets. This template provisions the Lambdas, shared layer, secrets,
+  execution roles, and a Cognito user pool used for the Gateway's inbound JWT
+  authorization. The Gateway + targets themselves are created by
+  scripts/deploy_gateway.py (boto3) after this stack deploys.
+
+Globals:
+  Function:
+    Runtime: python3.12
+    Timeout: 30
+    MemorySize: 256
+    Architectures: [x86_64]
+    Layers: [!Ref SharedLayer]
+    Environment:
+      Variables:
+        NEAT_SECRET_ARN: !Ref NeatSecret
+        GRAPH_SECRET_ARN: !Ref GraphSecret
+        THOUSANDEYES_SECRET_ARN: !Ref ThousandEyesSecret
+        NEAT_BASE: https://api.pulse.neat.no/v1
+        TE_BASE: https://api.thousandeyes.com/v7
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: neat-graph-bedrock
+
+Resources:
+
+  # ---- Secrets (populated out-of-band; never commit real values) ----------
+  NeatSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub "${ProjectName}/neat-pulse"
+      Description: "Neat Pulse org_id + api_key (Read scope)"
+      SecretString: '{"org_id":"REPLACE_ME","api_key":"REPLACE_ME"}'
+
+  GraphSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub "${ProjectName}/graph-app"
+      Description: "Entra app reg for Graph callRecords (client credentials)"
+      SecretString: '{"tenant_id":"REPLACE_ME","client_id":"REPLACE_ME","client_secret":"REPLACE_ME"}'
+
+  ThousandEyesSecret:
+    Type: AWS::SecretsManager::Secret
+    Properties:
+      Name: !Sub "${ProjectName}/thousandeyes"
+      Description: "Cisco ThousandEyes v7 API bearer token"
+      SecretString: '{"bearer_token":"REPLACE_ME"}'
+
+  # ---- Shared layer --------------------------------------------------------
+  SharedLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      LayerName: !Sub "${ProjectName}-shared"
+      ContentUri: ../build/layer/
+      CompatibleRuntimes: [python3.12]
+      CompatibleArchitectures: [arm64]
+    Metadata:
+      BuildMethod: python3.12
+
+  # ---- Lambda tool targets -------------------------------------------------
+  NeatSenseFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${ProjectName}-neat-sense"
+      CodeUri: ../src/neat_sense/
+      Handler: handler.handler
+      Policies:
+        - !Ref SecretsReadPolicy
+
+  GraphCallsFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${ProjectName}-graph-calls"
+      CodeUri: ../src/graph_calls/
+      Handler: handler.handler
+      Policies:
+        - !Ref SecretsReadPolicy
+
+  CorrelateFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${ProjectName}-correlate"
+      CodeUri: ../src/correlate/
+      Handler: handler.handler
+      Timeout: 60
+      Policies:
+        - !Ref SecretsReadPolicy
+
+  ThousandEyesFn:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${ProjectName}-thousandeyes"
+      CodeUri: ../src/thousandeyes/
+      Handler: handler.handler
+      Policies:
+        - !Ref SecretsReadPolicy
+
+  SecretsReadPolicy:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Action: [secretsmanager:GetSecretValue]
+            Resource: [!Ref NeatSecret, !Ref GraphSecret, !Ref ThousandEyesSecret]
+
+  # ---- Gateway execution role (assumed by AgentCore to invoke the Lambdas) -
+  GatewayRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "${ProjectName}-gateway-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: {Service: bedrock-agentcore.amazonaws.com}
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: invoke-tool-lambdas
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource:
+                  - !GetAtt NeatSenseFn.Arn
+                  - !GetAtt GraphCallsFn.Arn
+                  - !GetAtt CorrelateFn.Arn
+                  - !GetAtt ThousandEyesFn.Arn
+
+  # ---- Cognito: inbound JWT auth for the Gateway --------------------------
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub "${ProjectName}-pool"
+
+  ResourceServer:
+    Type: AWS::Cognito::UserPoolResourceServer
+    Properties:
+      UserPoolId: !Ref UserPool
+      Identifier: !Sub "${ProjectName}-api"
+      Name: !Sub "${ProjectName}-api"
+      Scopes:
+        - ScopeName: invoke
+          ScopeDescription: Invoke gateway tools
+
+  AppClient:
+    Type: AWS::Cognito::UserPoolClient
+    DependsOn: ResourceServer
+    Properties:
+      ClientName: !Sub "${ProjectName}-client"
+      UserPoolId: !Ref UserPool
+      GenerateSecret: true
+      AllowedOAuthFlows: [client_credentials]
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthScopes: [!Sub "${ProjectName}-api/invoke"]
+      SupportedIdentityProviders: [COGNITO]
+
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Sub "${ProjectName}-${AWS::AccountId}"
+      UserPoolId: !Ref UserPool
+
+Outputs:
+  NeatSenseFnArn: {Value: !GetAtt NeatSenseFn.Arn}
+  GraphCallsFnArn: {Value: !GetAtt GraphCallsFn.Arn}
+  CorrelateFnArn: {Value: !GetAtt CorrelateFn.Arn}
+  ThousandEyesFnArn: {Value: !GetAtt ThousandEyesFn.Arn}
+  GatewayRoleArn: {Value: !GetAtt GatewayRole.Arn}
+  UserPoolId: {Value: !Ref UserPool}
+  AppClientId: {Value: !Ref AppClient}
+  DiscoveryUrl:
+    Value: !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}/.well-known/openid-configuration"
+  TokenUrl:
+    Value: !Sub "https://${ProjectName}-${AWS::AccountId}.auth.${AWS::Region}.amazoncognito.com/oauth2/token"

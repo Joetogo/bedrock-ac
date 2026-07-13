@@ -1,0 +1,37 @@
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.venv*/
+build/
+
+# --- AWS SAM build artifacts ---
+.aws-sam/
+
+# --- Secrets & local env (never commit real credentials) ---
+# Template files (env.example, *.env.local.example) are intentionally tracked.
+.env
+.env.*
+!.env.example
+*.env.runtime
+agent/.env.runtime
+
+# --- AgentCore local deploy config (contains account id / role & runtime ARNs) ---
+.bedrock_agentcore.yaml
+.bedrock_agentcore/
+
+# --- Node / Next.js (root-level safety net; webapp/frontend has its own) ---
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+# --- Editor / OS ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# --- Tooling scratch ---
+.superpowers/
