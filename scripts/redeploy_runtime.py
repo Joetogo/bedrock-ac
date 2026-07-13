@@ -48,7 +48,7 @@ CONFIG_KEYS = (
     "MEMORY_ID",
 )
 
-DEFAULT_RUNTIME_ID = "neatGraphBedrockRuntime-I9lyq0FqCZ"
+DEFAULT_RUNTIME_ID = "<runtime-id>"
 DEFAULT_SSM_PREFIX = "/neat-graph-bedrock/runtime/"
 READY_STATES = {"READY", "ACTIVE"}
 FAILED_SUFFIX = "FAILED"

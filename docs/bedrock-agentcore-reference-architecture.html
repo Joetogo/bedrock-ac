@@ -1,0 +1,690 @@
+<title>Bedrock AgentCore Reference Architecture</title>
+<style>
+/* ============================================================= *
+   Instrument-panel reference document.
+   Palette + signal-bar language borrowed from the source
+   RF coverage calculator: light readout ground, teal accent,
+   RF signal-strength green/amber/red reused as severity + effort.
+ * ============================================================= */
+
+:root{
+  --paper:#ffffff;
+  --ground:#f3f7f8;
+  --ground-2:#e9f0f1;
+  --panel:#ffffff;
+  --ink:#0e1b20;
+  --ink-2:#33464c;
+  --ink-3:#6c7f86;
+  --line:#d6e0e2;
+  --line-2:#bccbce;
+  --accent:#0e8f8a;
+  --accent-bright:#12b3aa;
+  --accent-ink:#075e5a;
+  --accent-tint:#e2f3f1;
+  --good:#12924a;
+  --good-tint:#e3f4e9;
+  --warn:#c9760a;
+  --warn-tint:#fbeed6;
+  --crit:#d0322d;
+  --crit-tint:#fbe4e2;
+  --code-bg:#0f2226;
+  --code-ink:#d6e7e7;
+  --shadow:0 1px 2px rgba(14,27,32,.05), 0 8px 24px -12px rgba(14,27,32,.18);
+  --radius:10px;
+  --maxw:1080px;
+  --read:68ch;
+  --mono:ui-monospace,"Cascadia Code","JetBrains Mono","SF Mono",Consolas,"Liberation Mono",monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --paper:#101e22;
+    --ground:#0a1418;
+    --ground-2:#16272c;
+    --panel:#132328;
+    --ink:#e7eff0;
+    --ink-2:#b0c3c7;
+    --ink-3:#7d9299;
+    --line:#22383e;
+    --line-2:#31494f;
+    --accent:#2dd4c4;
+    --accent-bright:#48ecdb;
+    --accent-ink:#bff6f0;
+    --accent-tint:#123330;
+    --good:#37cf7d;
+    --good-tint:#10281c;
+    --warn:#f2a83c;
+    --warn-tint:#2c2110;
+    --crit:#f0716b;
+    --crit-tint:#2c1513;
+    --code-bg:#0a171a;
+    --code-ink:#cfe6e5;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 10px 30px -14px rgba(0,0,0,.6);
+  }
+}
+:root[data-theme="light"]{
+  --paper:#ffffff;--ground:#f3f7f8;--ground-2:#e9f0f1;--panel:#ffffff;
+  --ink:#0e1b20;--ink-2:#33464c;--ink-3:#6c7f86;--line:#d6e0e2;--line-2:#bccbce;
+  --accent:#0e8f8a;--accent-bright:#12b3aa;--accent-ink:#075e5a;--accent-tint:#e2f3f1;
+  --good:#12924a;--good-tint:#e3f4e9;--warn:#c9760a;--warn-tint:#fbeed6;--crit:#d0322d;--crit-tint:#fbe4e2;
+  --code-bg:#0f2226;--code-ink:#d6e7e7;--shadow:0 1px 2px rgba(14,27,32,.05),0 8px 24px -12px rgba(14,27,32,.18);
+}
+:root[data-theme="dark"]{
+  --paper:#101e22;--ground:#0a1418;--ground-2:#16272c;--panel:#132328;
+  --ink:#e7eff0;--ink-2:#b0c3c7;--ink-3:#7d9299;--line:#22383e;--line-2:#31494f;
+  --accent:#2dd4c4;--accent-bright:#48ecdb;--accent-ink:#bff6f0;--accent-tint:#123330;
+  --good:#37cf7d;--good-tint:#10281c;--warn:#f2a83c;--warn-tint:#2c2110;--crit:#f0716b;--crit-tint:#2c1513;
+  --code-bg:#0a171a;--code-ink:#cfe6e5;--shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px -14px rgba(0,0,0,.6);
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{
+  margin:0;background:var(--ground);color:var(--ink);
+  font-family:var(--sans);font-size:16px;line-height:1.65;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+}
+
+/* ---- rails ---- */
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 clamp(18px,4vw,40px)}
+.prose{max-width:var(--read)}
+
+/* ---- top bar ---- */
+.topbar{
+  position:sticky;top:0;z-index:20;
+  background:color-mix(in srgb,var(--paper) 88%,transparent);
+  backdrop-filter:saturate(1.4) blur(10px);
+  border-bottom:1px solid var(--line);
+}
+.topbar .wrap{display:flex;align-items:center;gap:14px;height:54px}
+.topbar .mark{font-family:var(--mono);font-size:.74rem;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.topbar .mark b{color:var(--accent)}
+.topbar .live{margin-left:auto;display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--good);box-shadow:0 0 0 3px var(--good-tint)}
+
+/* ---- hero ---- */
+.hero{padding:clamp(46px,8vw,92px) 0 clamp(30px,5vw,52px);border-bottom:1px solid var(--line);background:
+  radial-gradient(120% 90% at 88% -10%, var(--accent-tint) 0%, transparent 55%);}
+.eyebrow{font-family:var(--mono);font-size:.76rem;letter-spacing:.2em;text-transform:uppercase;color:var(--accent-ink);margin:0 0 18px;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.eyebrow .sep{color:var(--line-2)}
+h1{font-size:clamp(2.1rem,5.2vw,3.5rem);line-height:1.04;letter-spacing:-.02em;font-weight:760;margin:0 0 20px;text-wrap:balance;max-width:20ch}
+.hero .lede{font-size:clamp(1.06rem,2vw,1.28rem);color:var(--ink-2);max-width:60ch;margin:0}
+.metastrip{display:flex;flex-wrap:wrap;gap:10px 26px;margin-top:34px;padding-top:22px;border-top:1px dashed var(--line-2)}
+.metastrip div{font-family:var(--mono);font-size:.78rem;color:var(--ink-2)}
+.metastrip span{display:block;font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);margin-bottom:3px}
+
+/* ---- section scaffolding ---- */
+section{padding:clamp(40px,6vw,72px) 0;border-bottom:1px solid var(--line)}
+.shead{display:flex;gap:16px;align-items:baseline;margin-bottom:8px}
+.snum{font-family:var(--mono);font-size:.82rem;font-weight:600;color:var(--accent);letter-spacing:.06em;padding-top:.35em}
+h2{font-size:clamp(1.5rem,3.2vw,2.1rem);letter-spacing:-.015em;line-height:1.12;margin:0;font-weight:720;text-wrap:balance}
+.sdek{color:var(--ink-2);font-size:1.02rem;margin:.4em 0 0;max-width:var(--read)}
+h3{font-size:1.14rem;letter-spacing:-.01em;margin:2.4em 0 .7em;font-weight:680}
+h3 .k{font-family:var(--mono);font-size:.7em;color:var(--ink-3);font-weight:500}
+p{margin:0 0 1.05em}
+.prose p,.prose li{color:var(--ink-2)}
+strong{color:var(--ink);font-weight:640}
+a{color:var(--accent-ink);text-decoration:underline;text-decoration-color:var(--line-2);text-underline-offset:2px}
+a:hover{text-decoration-color:var(--accent)}
+ul.clean{list-style:none;padding:0;margin:0 0 1em}
+ul.clean li{position:relative;padding-left:22px;margin:.5em 0;color:var(--ink-2)}
+ul.clean li::before{content:"";position:absolute;left:2px;top:.62em;width:6px;height:6px;border-radius:1px;background:var(--accent);transform:rotate(45deg)}
+
+/* code */
+code{font-family:var(--mono);font-size:.86em;background:var(--ground-2);padding:.12em .4em;border-radius:5px;color:var(--ink);border:1px solid var(--line)}
+pre{margin:1.2em 0;background:var(--code-bg);color:var(--code-ink);border-radius:var(--radius);padding:18px 20px;overflow-x:auto;border:1px solid rgba(255,255,255,.06);box-shadow:var(--shadow);font-size:.83rem;line-height:1.6}
+pre code{background:none;border:none;padding:0;color:inherit;font-size:inherit}
+.pre-cap{font-family:var(--mono);font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin:1.4em 0 -.4em}
+.tok-c{color:#7fa7a3}/* comment */
+.tok-k{color:#5ad0c4}/* keyword/accent */
+.tok-s{color:#c7b98a}/* string */
+.tok-d{color:#9fb4b8}/* dim */
+
+/* callout / thesis */
+.thesis{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:var(--radius);padding:20px 24px;box-shadow:var(--shadow);margin:0 0 4px}
+.thesis p:last-child{margin-bottom:0}
+
+/* ---- architecture diagram ---- */
+.diagram{margin:1.6em 0;overflow-x:auto}
+.diagram-inner{min-width:660px;display:flex;flex-direction:column;gap:0}
+.band{display:grid;grid-template-columns:132px 1fr;gap:16px;align-items:stretch;padding:6px 0}
+.band-label{font-family:var(--mono);font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);display:flex;align-items:center}
+.band-body{display:flex;gap:10px;flex-wrap:wrap}
+.node{flex:1 1 auto;min-width:120px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:11px 13px;box-shadow:var(--shadow)}
+.node .nt{font-weight:640;font-size:.9rem;display:flex;align-items:center;gap:7px}
+.node .nd{font-family:var(--mono);font-size:.7rem;color:var(--ink-3);margin-top:3px;line-height:1.4}
+.node.accent{border-color:var(--accent);background:var(--accent-tint)}
+.node.accent .nt{color:var(--accent-ink)}
+.node.ghost{border-style:dashed;opacity:.85}
+.flow{display:flex;justify-content:center;padding:2px 0;color:var(--line-2)}
+.flow svg{width:16px;height:16px}
+.tag{font-family:var(--mono);font-size:.6rem;letter-spacing:.08em;text-transform:uppercase;padding:2px 6px;border-radius:20px;border:1px solid var(--line-2);color:var(--ink-3);white-space:nowrap}
+.tag.ro{color:var(--good);border-color:var(--good)}
+.tag.new{color:var(--accent-ink);border-color:var(--accent);background:var(--accent-tint)}
+
+/* ---- tables ---- */
+.tablewrap{overflow-x:auto;margin:1.3em 0;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+table{border-collapse:collapse;width:100%;min-width:560px;font-size:.9rem;background:var(--panel)}
+th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+thead th{font-family:var(--mono);font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);background:var(--ground-2);position:sticky;top:0}
+tbody tr:last-child td{border-bottom:none}
+td code{font-size:.82em}
+.num{font-variant-numeric:tabular-nums;font-family:var(--mono)}
+
+/* status pills */
+.pill{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:.68rem;font-weight:600;letter-spacing:.04em;padding:3px 9px;border-radius:20px;white-space:nowrap}
+.pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.pill.live{color:var(--good);background:var(--good-tint)}
+.pill.wired{color:var(--warn);background:var(--warn-tint)}
+.pill.design{color:var(--accent-ink);background:var(--accent-tint)}
+
+/* ---- severity cards (watch-outs) ---- */
+.risk{display:grid;grid-template-columns:auto 1fr;gap:0;margin:14px 0;background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;box-shadow:var(--shadow)}
+.risk .stripe{width:6px}
+.risk.crit .stripe{background:var(--crit)}
+.risk.warn .stripe{background:var(--warn)}
+.risk.good .stripe{background:var(--good)}
+.risk .body{padding:15px 18px}
+.risk .rh{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:5px}
+.risk .rh h4{margin:0;font-size:1rem;font-weight:660}
+.sev{font-family:var(--mono);font-size:.62rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:2px 8px;border-radius:4px}
+.sev.crit{color:var(--crit);background:var(--crit-tint)}
+.sev.warn{color:var(--warn);background:var(--warn-tint)}
+.sev.good{color:var(--good);background:var(--good-tint)}
+.risk .body p{margin:.2em 0 0;font-size:.92rem;color:var(--ink-2)}
+.risk .fix{margin-top:.7em;font-size:.88rem;color:var(--ink-2)}
+.risk .fix b{color:var(--accent-ink);font-family:var(--mono);font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;display:inline-block;margin-right:6px}
+
+/* ---- toolset cards w/ signal-bar effort ---- */
+.grid2{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin:1.4em 0}
+.tool{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:8px}
+.tool .th{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.tool h4{margin:0;font-size:1.04rem;font-weight:680;letter-spacing:-.01em}
+.tool .cat{font-family:var(--mono);font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin-top:2px}
+.tool p{font-size:.9rem;margin:.1em 0 0;color:var(--ink-2)}
+.tool .foot{margin-top:auto;padding-top:10px;border-top:1px dashed var(--line);display:flex;align-items:center;justify-content:space-between;gap:10px}
+.meter{display:flex;align-items:center;gap:8px}
+.bars{display:flex;gap:3px;align-items:flex-end;height:16px}
+.bars i{width:5px;border-radius:1px;background:var(--line-2);display:block}
+.bars i:nth-child(1){height:6px}.bars i:nth-child(2){height:9px}.bars i:nth-child(3){height:12px}.bars i:nth-child(4){height:16px}
+.bars.e1 i:nth-child(-n+4){background:var(--good)}
+.bars.e2 i:nth-child(-n+3){background:var(--good)}
+.bars.e3 i:nth-child(-n+2){background:var(--warn)}
+.bars.e4 i:nth-child(-n+1){background:var(--crit)}
+.meter .ml{font-family:var(--mono);font-size:.64rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
+.tpl{font-family:var(--mono);font-size:.64rem;color:var(--accent-ink);white-space:nowrap}
+
+/* ---- cost tiles ---- */
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:14px;margin:1.4em 0}
+.tile{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;box-shadow:var(--shadow)}
+.tile .tl{font-family:var(--mono);font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
+.tile .tv{font-size:1.5rem;font-weight:720;letter-spacing:-.02em;margin:6px 0 2px;font-variant-numeric:tabular-nums}
+.tile .tv small{font-size:.86rem;font-weight:500;color:var(--ink-3)}
+.tile .tn{font-size:.82rem;color:var(--ink-2)}
+
+/* legend */
+.legend{display:flex;flex-wrap:wrap;gap:16px;margin:1.1em 0;padding:12px 16px;background:var(--ground-2);border:1px solid var(--line);border-radius:var(--radius);font-size:.82rem;color:var(--ink-2)}
+.legend .li{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:.72rem}
+
+/* roadmap */
+.road{display:flex;flex-direction:column;gap:0;margin:1.4em 0}
+.phase{display:grid;grid-template-columns:150px 1fr;gap:20px;padding:16px 0;border-top:1px solid var(--line)}
+.phase:first-child{border-top:none}
+.phase .pl{font-family:var(--mono);font-size:.74rem}
+.phase .pl b{display:block;color:var(--accent-ink);font-size:.82rem;letter-spacing:.04em}
+.phase .pl span{color:var(--ink-3);font-size:.68rem;text-transform:uppercase;letter-spacing:.1em}
+.phase .pc h4{margin:0 0 4px;font-size:1rem}
+.phase .pc p{margin:0;font-size:.9rem;color:var(--ink-2)}
+.phase .pc .items{margin:.6em 0 0}
+
+/* footer */
+footer{padding:44px 0 70px;color:var(--ink-3);font-size:.84rem}
+footer .refs{columns:2 260px;column-gap:32px;margin:1em 0 0}
+footer .refs a{display:block;margin:.35em 0;font-family:var(--mono);font-size:.74rem;break-inside:avoid}
+.hr-note{font-family:var(--mono);font-size:.72rem;color:var(--ink-3);border-top:1px dashed var(--line-2);padding-top:16px;margin-top:26px}
+
+@media (max-width:640px){
+  .band{grid-template-columns:1fr;gap:6px}
+  .band-label{margin-top:6px}
+  .phase{grid-template-columns:1fr;gap:6px}
+  footer .refs{columns:1}
+}
+.reveal{opacity:0;transform:translateY(10px);animation:rise .7s cubic-bezier(.2,.7,.3,1) forwards}
+@keyframes rise{to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.reveal{animation:none;opacity:1;transform:none}}
+</style>
+
+<div class="topbar">
+  <div class="wrap">
+    <div class="mark"><b>◢◤</b> Bedrock AgentCore &nbsp;·&nbsp; Reference Architecture &nbsp;·&nbsp; Neat × Graph × ThousandEyes</div>
+    <div class="live"><span class="dot"></span> us-east-1 · fully hosted · web console live</div>
+  </div>
+</div>
+
+<header class="hero">
+  <div class="wrap reveal">
+    <p class="eyebrow">
+      <span>Architecture reference</span><span class="sep">/</span>
+      <span>Prepared for ANZ architecture review</span><span class="sep">/</span>
+      <span>2026-07-11</span>
+    </p>
+    <h1>A natural-language correlation agent, now living entirely in AWS.</h1>
+    <p class="lede">One conversational agent that reads meeting-room telemetry, Microsoft Teams call quality, and Cisco ThousandEyes network tests — and correlates them on demand. It now runs <strong>entirely in AWS</strong>: the agent is hosted on <strong>Amazon Bedrock AgentCore Runtime</strong>, and a browser <strong>web console</strong> is live on CloudFront — no laptop in the loop. This document maps the stack as-built, with the trade-offs, guardrails, and optimisations an enterprise reviewer needs to sign it off.</p>
+    <div class="metastrip">
+      <div><span>Pattern</span>Gateway-as-MCP · server-side credential injection</div>
+      <div><span>Runtime model</span>Serverless · read-only by construction</div>
+      <div><span>Surface</span>Web console · CloudFront + Cognito · live</div>
+      <div><span>Account</span><account_id> · us-east-1</div>
+      <div><span>Tools live</span>9 across 4 targets</div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+<!-- ============ 0 · TL;DR ============ -->
+<section>
+  <div class="shead"><div class="snum">00</div><div><h2>The one-paragraph version</h2></div></div>
+  <div class="prose">
+    <div class="thesis">
+      <p>The system is an <strong>MCP server hosted by an AgentCore Gateway</strong>. Four AWS Lambda functions are exposed to a Claude model as read-only tools; the Gateway injects each upstream's credentials server-side, so the model never sees the Neat API key, the Graph client secret, or the ThousandEyes token. <strong>Neat, ThousandEyes and Microsoft Teams call records all answer real queries end-to-end today.</strong> The driver loop is no longer on a laptop — it runs as a hosted <strong>AgentCore Runtime</strong> agent (Strands + Memory), always-on and reachable through a <strong>browser web console</strong> (Next.js SPA on CloudFront, Cognito login). The agent answers in clean markdown and <strong>proactively renders interactive charts</strong>. Everything below is the map, the risks, the optimisations, and the toolsets worth adding next — each rated for how much effort it takes.</p>
+    </div>
+    <div class="legend" aria-hidden="true">
+      <span class="li"><span class="pill live">live</span> answering real queries</span>
+      <span class="li"><span class="pill wired">wired</span> deployed, not live-verified</span>
+      <span class="li"><span class="pill design">designed</span> specced &amp; planned, not built</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 1 · CURRENT ARCHITECTURE ============ -->
+<section>
+  <div class="shead"><div class="snum">01</div><div>
+    <h2>Current-state architecture</h2>
+    <p class="sdek">What is deployed in us-east-1 right now, top to bottom.</p>
+  </div></div>
+
+  <div class="diagram" role="img" aria-label="Layered architecture from operator down to upstream APIs">
+    <div class="diagram-inner">
+      <div class="band">
+        <div class="band-label">Surface</div>
+        <div class="band-body">
+          <div class="node accent"><div class="nt">Web console <span class="tag new">LIVE</span></div><div class="nd">Next.js SPA · S3 + CloudFront · Cognito PKCE · API Gateway (JWT) → async submit+poll Lambda · per-user DynamoDB history · interactive Vega-Lite charts</div></div>
+          <div class="node ghost"><div class="nt">CLI</div><div class="nd">invoke_agent.py / ask.py <span class="tag">DEV</span></div></div>
+        </div>
+      </div>
+      <div class="flow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v16M6 14l6 6 6-6"/></svg></div>
+      <div class="band">
+        <div class="band-label">Agent</div>
+        <div class="band-body">
+          <div class="node accent"><div class="nt">AgentCore Runtime <span class="tag ro">READ-ONLY</span></div><div class="nd">hosted Strands agent (neatGraphBedrockRuntime) · env baked from SSM · Memory-aware · proactive charts <span class="tag new">LIVE</span></div></div>
+        </div>
+      </div>
+      <div class="flow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v16M6 14l6 6 6-6"/></svg></div>
+      <div class="band">
+        <div class="band-label">Model</div>
+        <div class="band-body">
+          <div class="node accent"><div class="nt">Amazon Bedrock</div><div class="nd">Claude (auto-resolved <code>us.</code> inference profile) · converse + tool-use</div></div>
+        </div>
+      </div>
+      <div class="flow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v16M6 14l6 6 6-6"/></svg></div>
+      <div class="band">
+        <div class="band-label">Gateway · MCP</div>
+        <div class="band-body">
+          <div class="node accent"><div class="nt">AgentCore Gateway <span class="tag ro">READ-ONLY</span></div><div class="nd">gateway&nbsp;neat-graph-bedrock-gw-<gateway-id> · protocol MCP · CUSTOM_JWT inbound (Cognito) · GATEWAY_IAM_ROLE outbound</div></div>
+        </div>
+      </div>
+      <div class="flow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v16M6 14l6 6 6-6"/></svg></div>
+      <div class="band">
+        <div class="band-label">Tool targets</div>
+        <div class="band-body">
+          <div class="node"><div class="nt">neat_sense</div><div class="nd">2 tools · Lambda</div></div>
+          <div class="node"><div class="nt">graph_calls</div><div class="nd">2 tools · Lambda</div></div>
+          <div class="node"><div class="nt">thousandeyes</div><div class="nd">4 tools · Lambda</div></div>
+          <div class="node"><div class="nt">correlate</div><div class="nd">1 tool · joins server-side</div></div>
+        </div>
+      </div>
+      <div class="flow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v16M6 14l6 6 6-6"/></svg></div>
+      <div class="band">
+        <div class="band-label">Secrets</div>
+        <div class="band-body">
+          <div class="node"><div class="nt">Secrets Manager</div><div class="nd">neat-pulse · graph-app · thousandeyes — read at invoke, cached per-container</div></div>
+        </div>
+      </div>
+      <div class="flow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v16M6 14l6 6 6-6"/></svg></div>
+      <div class="band">
+        <div class="band-label">Upstreams</div>
+        <div class="band-body">
+          <div class="node"><div class="nt">Neat Pulse / Sense</div><div class="nd">api.pulse.neat.no · Norway · Bearer</div></div>
+          <div class="node"><div class="nt">MS Graph callRecords</div><div class="nd">graph.microsoft.com · app-only</div></div>
+          <div class="node"><div class="nt">Cisco ThousandEyes</div><div class="nd">api.thousandeyes.com/v7 · Bearer</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="prose">
+    <p>The load-bearing idea is on the <strong>Gateway</strong> row: it <em>is</em> the MCP server. Each Lambda is registered as a Gateway target with an inline tool schema, so the model discovers <code>neat_room_sensors</code>, <code>te_voice_results</code> and the rest as first-class MCP tools. Inbound calls carry a Cognito JWT (client-credentials); outbound Lambda invocation uses the Gateway's IAM role. The credential-injection boundary is the whole security story — <strong>upstream secrets never cross into the model context.</strong></p>
+  </div>
+
+  <h3 class="prose">Live status by integration</h3>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Integration</th><th>State</th><th>Evidence</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Neat Pulse / Sense</strong></td><td><span class="pill live">live</span></td><td><code>neat_list_rooms</code> → 6 rooms; <code>neat_room_sensors</code> → room 26, people=1</td></tr>
+        <tr><td><strong>Cisco ThousandEyes</strong></td><td><span class="pill live">live</span></td><td><code>te_list_tests_alerts</code> → 57 real tests (MS Teams A/V, SD-WAN head-ends)</td></tr>
+        <tr><td><strong>MS Graph callRecords</strong></td><td><span class="pill live">live</span></td><td>returns real Teams calls end-to-end — per-stream jitter / RTT / packet loss (query window clamped to Graph's ~30-day retention)</td></tr>
+        <tr><td><strong>AgentCore Runtime</strong></td><td><span class="pill live">live</span></td><td>hosted us-east-1 (<code><runtime-id></code>) · env baked from SSM · multi-turn memory + proactive charts · E2E verified via <code>invoke_agent.py</code></td></tr>
+        <tr><td><strong>Web console</strong></td><td><span class="pill live">live</span></td><td>CloudFront SPA (<cloudfront-id>) · Cognito login · async chat · interactive Vega-Lite charts</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3 class="prose">The tool surface <span class="k">// 9 tools, all GET-shaped</span></h3>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Tool</th><th>Target</th><th>Returns</th></tr></thead>
+      <tbody>
+        <tr><td class="num">neat_list_rooms</td><td>neat</td><td>rooms / spaces + endpoint ids</td></tr>
+        <tr><td class="num">neat_room_sensors</td><td>neat</td><td>CO₂, temp, humidity, people count, VOC over a window</td></tr>
+        <tr><td class="num">graph_list_call_records</td><td>graph</td><td>Teams call records started in a UTC window</td></tr>
+        <tr><td class="num">graph_call_quality</td><td>graph</td><td>per-session jitter / packet loss / RTT / codec</td></tr>
+        <tr><td class="num">te_list_tests_alerts</td><td>thousandeyes</td><td>configured tests + active alerts</td></tr>
+        <tr><td class="num">te_network_results</td><td>thousandeyes</td><td>loss / latency / jitter per agent</td></tr>
+        <tr><td class="num">te_voice_results</td><td>thousandeyes</td><td>MOS / jitter / loss / latency (RTP)</td></tr>
+        <tr><td class="num">te_path_visualization</td><td>thousandeyes</td><td>hop-by-hop path with per-hop latency/loss</td></tr>
+        <tr><td class="num">correlate_room_calls</td><td>correlate</td><td>room environment joined to its calls' quality</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ 2 · LOGICAL VIEW ============ -->
+<section>
+  <div class="shead"><div class="snum">02</div><div>
+    <h2>Logical view — one request, end to end</h2>
+    <p class="sdek">The same picture as a lifecycle, so the trust boundaries are explicit.</p>
+  </div></div>
+  <div class="prose">
+    <ul class="clean">
+      <li><strong>Ask.</strong> The operator sends plain English. The driver mints a Cognito client-credentials token and opens a streamable-HTTP MCP session to the Gateway.</li>
+      <li><strong>Discover.</strong> The model receives the Gateway's <code>tools/list</code> — nine tool specs with JSON schemas — as its tool config.</li>
+      <li><strong>Reason + call.</strong> Bedrock decides which tools to call. Each call is a JWT-authorised MCP request to the Gateway, which invokes the target Lambda under its own IAM role.</li>
+      <li><strong>Fetch, secretly.</strong> The Lambda reads only <em>its</em> secret from Secrets Manager, calls the upstream, and returns compact JSON. The secret never leaves the function.</li>
+      <li><strong>Answer.</strong> Tool output re-enters the model as untrusted context; the loop repeats until the model stops calling tools, then returns prose — with the standing instruction that correlation is <em>observational, not causal</em>.</li>
+    </ul>
+    <div class="thesis">
+      <p><strong>Two independent auth hops, by design.</strong> Caller→Gateway is one Cognito client protecting the MCP endpoint. Gateway→Lambda→upstream is per-service secret injection. Collapsing these — e.g. handing upstream keys to the caller — is the anti-pattern this architecture exists to avoid.</p>
+    </div>
+  </div>
+
+  <p class="pre-cap prose">Credential injection · src/_shared/clients.py</p>
+  <pre class="prose"><code><span class="tok-c"># The model never sees any of these. Each Lambda reads only its own secret,</span>
+<span class="tok-c"># calls the upstream with a stdlib request, and returns plain JSON.</span>
+<span class="tok-k">def</span> te_get(path, params=<span class="tok-k">None</span>):
+    sec = get_secret(os.environ[<span class="tok-s">"THOUSANDEYES_SECRET_ARN"</span>])   <span class="tok-c"># Secrets Manager</span>
+    status, payload = _http(<span class="tok-s">"GET"</span>, <span class="tok-d">f</span><span class="tok-s">"{TE_BASE}{path}"</span>, {
+        <span class="tok-s">"Authorization"</span>: <span class="tok-d">f</span><span class="tok-s">"Bearer {sec['bearer_token']}"</span>,   <span class="tok-c"># injected server-side</span>
+        <span class="tok-s">"Accept"</span>: <span class="tok-s">"application/json"</span>,
+    })
+    <span class="tok-k">return</span> payload   <span class="tok-c"># compact — it re-enters the model as untrusted tool output</span></code></pre>
+</section>
+
+<!-- ============ 3 · THE UPLIFT ============ -->
+<section>
+  <div class="shead"><div class="snum">03</div><div>
+    <h2>The uplift — from laptop to fully hosted <span class="k">// delivered</span></h2>
+    <p class="sdek">Your stated goal — nothing runs locally, it all runs in AgentCore — is met. Here is what changed.</p>
+  </div></div>
+  <div class="prose">
+    <p>This uplift is <strong>done</strong>. The one component that was local — the <em>driver</em> tool-use loop — now runs as a hosted <strong>AgentCore Runtime</strong> agent on the <strong>Strands Agents SDK</strong>, with <strong>AgentCore Memory</strong> for multi-turn recall, and a Next.js <strong>web console</strong> in front of it so anyone with a login can talk to it. The table below is the before → delivered map.</p>
+  </div>
+
+  <div class="tablewrap prose" style="max-width:none">
+    <table>
+      <thead><tr><th>Concern</th><th>Was (local POC)</th><th>Now (delivered)</th></tr></thead>
+      <tbody>
+        <tr><td>Driver loop</td><td>python scripts/ask.py on the laptop</td><td>Containerised Strands agent on <strong>AgentCore Runtime</strong>, microVM-isolated per session</td></tr>
+        <tr><td>Invocation</td><td>Shell + local AWS creds</td><td>Browser <strong>web console</strong> (Cognito login → API Gateway → async Lambda → <code>invoke-agent-runtime</code>); CLI still available for ops</td></tr>
+        <tr><td>Memory</td><td>None — each run is stateless</td><td><strong>AgentCore Memory</strong> short-term event store, keyed by <code>sessionId</code></td></tr>
+        <tr><td>Gateway credential</td><td>client id/secret in local <code>.env</code></td><td>Read at runtime from <code>neat-graph-bedrock/gateway-client</code> secret — never in the image or env</td></tr>
+        <tr><td>Model selection</td><td>Auto-resolve newest Sonnet profile</td><td>Same logic, inside the runtime execution role</td></tr>
+        <tr><td>Observability</td><td>stdout on the laptop</td><td>CloudWatch logs from the Runtime container today; full <strong>AgentCore Observability</strong> (OTEL → CloudWatch GenAI) is the next hygiene add (§05)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <p class="pre-cap prose">Hosted entrypoint · agent/agent.py</p>
+  <pre class="prose"><code><span class="tok-c"># The whole local loop collapses into a hosted entrypoint.</span>
+app = BedrockAgentCoreApp()
+
+<span class="tok-k">@app.entrypoint</span>
+<span class="tok-k">def</span> invoke(payload):                    <span class="tok-c"># {"prompt", "sessionId"}</span>
+    <span class="tok-k">try</span>:
+        <span class="tok-k">return</span> answer(payload)             <span class="tok-c"># recall memory → Strands tool-loop → save turn</span>
+    <span class="tok-k">except</span> Exception <span class="tok-k">as</span> e:
+        <span class="tok-k">return</span> {<span class="tok-s">"error"</span>: str(e), <span class="tok-s">"sessionId"</span>: payload.get(<span class="tok-s">"sessionId"</span>)}
+
+<span class="tok-c"># Memory degrades to stateless on failure — a memory hiccup never blocks an answer.</span></code></pre>
+
+  <div class="prose"><div class="thesis"><p><strong>Read-only is preserved by construction through the uplift.</strong> The hosted agent adds no tools; it can only reach the Gateway's nine GET-shaped tools. There is no create/update/delete path anywhere in scope — a property worth stating plainly to a risk reviewer.</p></div></div>
+</section>
+
+<!-- ============ 4 · WATCH-OUTS ============ -->
+<section>
+  <div class="shead"><div class="snum">04</div><div>
+    <h2>Things to look out for</h2>
+    <p class="sdek">Ordered by what a bank's risk and platform teams will raise first. Severity uses the coverage-map language: red = block, amber = fix before scale, green = hygiene.</p>
+  </div></div>
+
+  <div class="risk crit"><div class="stripe"></div><div class="body">
+    <div class="rh"><span class="sev crit">critical</span><h4>Data residency — the whole stack is pinned to us-east-1</h4></div>
+    <p>Region was chosen to sidestep AgentCore/Bedrock availability questions, not for data policy. For an ANZ banking audience, meeting-room, call-quality and network telemetry landing in <strong>N. Virginia</strong> is a sovereignty conversation on its own. Neat's own API is in <strong>Norway</strong>, adding a second cross-border hop.</p>
+    <p class="fix"><b>Action</b>Confirm AgentCore Gateway + Runtime + your Claude models are available in <code>ap-southeast-2</code> (Sydney), then re-home. Treat the Neat-in-Norway egress as a documented exception.</p>
+  </div></div>
+
+  <div class="risk crit"><div class="stripe"></div><div class="body">
+    <div class="rh"><span class="sev crit">critical</span><h4>Graph <code>CallRecords.Read.All</code> is a tenant-wide, app-only grant</h4></div>
+    <p>callRecords does not support delegated auth — the app can read <em>every</em> Teams call in the tenant. That secret is effectively an organisation-wide surveillance key. In a bank this needs an explicit owner, justification, and blast-radius sign-off.</p>
+    <p class="fix"><b>Action</b>Rotate on a schedule, store nowhere but Secrets Manager, and document the grant in the risk register. Consider a dedicated app registration used by nothing else.</p>
+  </div></div>
+
+  <div class="risk warn"><div class="stripe"></div><div class="body">
+    <div class="rh"><span class="sev warn">fix before scale</span><h4>Layer architecture mismatch in the SAM template</h4></div>
+    <p><code>Globals.Function.Architectures</code> is <code>[x86_64]</code> (switched from arm64 to dodge a Windows Docker build deadlock), but <code>SharedLayer.CompatibleArchitectures</code> still reads <code>[arm64]</code>. Pure-Python means it works today, but the two disagree — and this is the same file whose layer double-nesting once made three functions silently fail to import.</p>
+    <p class="fix"><b>Action</b>Make them agree. Best is to move builds to CodeBuild/Linux and standardise on <code>arm64</code> (Graviton) for both — cheaper and consistent (see §05).</p>
+  </div></div>
+
+  <div class="risk warn"><div class="stripe"></div><div class="body">
+    <div class="rh"><span class="sev warn">fix before scale</span><h4>Single-operator inbound auth won't survive real users</h4></div>
+    <p>The planned Runtime is reached by SigV4 as one operator — fine for a POC. The moment more than one human, or a UI, needs access, you need real identity, not shared IAM.</p>
+    <p class="fix"><b>Action</b>Adopt <strong>AgentCore Identity</strong> for inbound OAuth (per-user tokens) before opening it up. It also centralises the outbound token handling you currently hand-roll (see §06).</p>
+  </div></div>
+
+  <div class="risk warn"><div class="stripe"></div><div class="body">
+    <div class="rh"><span class="sev warn">fix before scale</span><h4>Correlation join is name-substring matching</h4></div>
+    <p>The POC ties a room to its calls by matching name substrings. Two rooms called "Level 3 Boardroom" in different buildings will cross-contaminate. The team has already decided the fix.</p>
+    <p class="fix"><b>Action</b>Ship the planned <code>config/locations.json</code> explicit map (Neat space id ↔ Teams resource account ↔ ThousandEyes site). Missing ids degrade to null, not to a wrong match.</p>
+  </div></div>
+
+  <div class="risk warn"><div class="stripe"></div><div class="body">
+    <div class="rh"><span class="sev warn">fix before scale</span><h4>Tool output is untrusted model context — a prompt-injection surface</h4></div>
+    <p>The code comments already flag it: upstream JSON re-enters the model. A malicious room name or test label could carry instructions. Low risk on first-party data, non-zero at a bank.</p>
+    <p class="fix"><b>Action</b>Add <strong>Bedrock Guardrails</strong> for PII redaction + injection heuristics, and keep tool payloads compact (already done). See §06.</p>
+  </div></div>
+
+  <div class="risk good"><div class="stripe"></div><div class="body">
+    <div class="rh"><span class="sev good">hygiene</span><h4>Secret caching outlives rotation</h4></div>
+    <p><code>get_secret</code> uses an <code>lru_cache</code> that persists for the life of a warm Lambda container. After a rotation, warm containers keep serving the old value until they recycle.</p>
+    <p class="fix"><b>Action</b>Add a short TTL to the cache (e.g. 5–15 min) so rotation propagates without a cold start. Trivial change, avoids a confusing outage.</p>
+  </div></div>
+
+  <div class="risk good"><div class="stripe"></div><div class="body">
+    <div class="rh"><span class="sev good">hygiene</span><h4>Template ships <code>REPLACE_ME</code> secret placeholders + model EOL churn</h4></div>
+    <p>Secrets deploy with literal <code>REPLACE_ME</code> values (populated out-of-band). And Bedrock model versions reach EOL — hardcoding an id will break. Both are already handled operationally, but both are easy to trip over on a fresh deploy.</p>
+    <p class="fix"><b>Action</b>Keep the auto-resolve-newest-Sonnet logic (already in place); add a post-deploy check that fails loudly if any secret still reads <code>REPLACE_ME</code>.</p>
+  </div></div>
+</section>
+
+<!-- ============ 5 · OPTIMISATIONS ============ -->
+<section>
+  <div class="shead"><div class="snum">05</div><div>
+    <h2>Optimisations worth doing</h2>
+    <p class="sdek">Cheap wins first. None of these change the read-only contract.</p>
+  </div></div>
+  <div class="prose">
+    <ul class="clean">
+      <li><strong>Turn on AgentCore Observability.</strong> Near-zero effort, largest operational payoff. Strands emits OpenTelemetry natively; point it at CloudWatch GenAI and you get per-session traces, tool latency, and token spend — the difference between "the agent is slow" and "the <code>te_path_visualization</code> call is slow".</li>
+      <li><strong>Prompt-cache the static prefix.</strong> The system prompt and nine tool schemas are identical every turn. Bedrock prompt caching on that prefix cuts input-token cost materially on a chatty tool-use loop.</li>
+      <li><strong>Enable Gateway semantic tool search.</strong> At nine tools the full list is fine. As you add Webex, ServiceNow, Meraki, etc., semantic search lets the model pull only the relevant tools into the prompt — smaller prompts, lower latency, lower cost.</li>
+      <li><strong>Move Lambdas to arm64 (Graviton).</strong> ~20% cheaper for the same pure-Python workload, and it resolves the §04 architecture mismatch. Needs a Linux/CodeBuild build step so you're not fighting Windows Docker emulation.</li>
+      <li><strong>Add long-term Memory strategies later.</strong> Short-term event store covers "that first room". A semantic/summary strategy would let the agent remember standing facts across sessions ("Level 3 Boardroom always spikes at 2pm") — opt in when the use case appears; it costs per stored memory.</li>
+      <li><strong>Give <code>correlate</code> a TTL cache + parallel fetch.</strong> It fans out to multiple upstreams per call; caching room lists and issuing concurrent requests shortens the slowest path in the system.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============ 6 · NEW TOOLSETS ============ -->
+<section>
+  <div class="shead"><div class="snum">06</div><div>
+    <h2>Toolsets to add — and how hard each is</h2>
+    <p class="sdek">Effort read as signal bars: <strong>4 bars green = drop-in</strong>, 3 green = a day, 2 amber = a sprint, 1 red = a project. Each is something the build agent can hand you a ready-to-drop template for (web-current capability confirmed for this document).</p>
+  </div></div>
+
+  <div class="legend" aria-hidden="true">
+    <span class="li"><span class="bars e1"><i></i><i></i><i></i><i></i></span> drop-in</span>
+    <span class="li"><span class="bars e2"><i></i><i></i><i></i><i></i></span> ~a day</span>
+    <span class="li"><span class="bars e3"><i></i><i></i><i></i><i></i></span> a sprint</span>
+    <span class="li"><span class="bars e4"><i></i><i></i><i></i><i></i></span> a project</span>
+  </div>
+
+  <div class="grid2">
+    <div class="tool">
+      <div class="th"><div><h4>AgentCore Observability</h4><div class="cat">Ops · OTEL → CloudWatch</div></div></div>
+      <p>Dashboards, tracing and token metrics with no code change — Strands is already OTEL-native. The single highest-value add.</p>
+      <div class="foot"><div class="meter"><span class="bars e1"><i></i><i></i><i></i><i></i></span><span class="ml">drop-in</span></div><span class="tpl">→ config template</span></div>
+    </div>
+
+    <div class="tool">
+      <div class="th"><div><h4>Gateway target via OpenAPI / Smithy</h4><div class="cat">New data source · no Lambda</div></div></div>
+      <p>Wrap any REST API (Webex, ServiceNow, Meraki) by handing the Gateway an OpenAPI spec — no handler code. This is the fast path for the pending Webex axis.</p>
+      <div class="foot"><div class="meter"><span class="bars e2"><i></i><i></i><i></i><i></i></span><span class="ml">~a day</span></div><span class="tpl">→ spec + target template</span></div>
+    </div>
+
+    <div class="tool">
+      <div class="th"><div><h4>Federate the official ThousandEyes MCP</h4><div class="cat">MCP target · aggregation mode</div></div></div>
+      <p>Gateway now supports MCP targets with 3-legged OAuth and capability sync. You could point at TE's hosted MCP instead of the hand-wrapped Lambda — <em>trade-off:</em> it exposes write verbs, so keep the read-only Lambda unless you filter.</p>
+      <div class="foot"><div class="meter"><span class="bars e2"><i></i><i></i><i></i><i></i></span><span class="ml">~a day</span></div><span class="tpl">→ MCP-target template</span></div>
+    </div>
+
+    <div class="tool">
+      <div class="th"><div><h4>AgentCore Code Interpreter</h4><div class="cat">Analysis · sandboxed Python</div></div></div>
+      <p>Let the agent <em>compute</em> over correlated data — a real correlation coefficient between CO₂ and jitter, a chart — instead of eyeballing it. Perfect fit for the "does room X track call quality" question.</p>
+      <div class="foot"><div class="meter"><span class="bars e2"><i></i><i></i><i></i><i></i></span><span class="ml">~a day</span></div><span class="tpl">→ tool-enable template</span></div>
+    </div>
+
+    <div class="tool">
+      <div class="th"><div><h4>Bedrock Guardrails</h4><div class="cat">Safety · PII + injection</div></div></div>
+      <p>Redact PII from tool output and dampen prompt-injection from untrusted upstream strings (§04). A near-requirement before a banking security review.</p>
+      <div class="foot"><div class="meter"><span class="bars e2"><i></i><i></i><i></i><i></i></span><span class="ml">~a day</span></div><span class="tpl">→ guardrail policy template</span></div>
+    </div>
+
+    <div class="tool">
+      <div class="th"><div><h4>AgentCore Identity</h4><div class="cat">Auth · inbound + outbound OAuth</div></div></div>
+      <p>Per-user inbound tokens (replaces single-operator SigV4) and managed outbound OAuth/token refresh (replaces the hand-rolled Cognito + Graph token code). The unlock for multi-user access.</p>
+      <div class="foot"><div class="meter"><span class="bars e3"><i></i><i></i><i></i><i></i></span><span class="ml">a sprint</span></div><span class="tpl">→ identity wiring template</span></div>
+    </div>
+
+    <div class="tool">
+      <div class="th"><div><h4>AgentCore Evaluations</h4><div class="cat">Quality · regression tests</div></div></div>
+      <p>A fixed question set scored against expected answers, run on every change — so a model bump or prompt edit can't silently regress "list the Neat rooms".</p>
+      <div class="foot"><div class="meter"><span class="bars e3"><i></i><i></i><i></i><i></i></span><span class="ml">a sprint</span></div><span class="tpl">→ eval-suite template</span></div>
+    </div>
+
+    <div class="tool">
+      <div class="th"><div><h4>Web console <span class="k">// shipped</span></h4><div class="cat">Surface · Next.js chat · LIVE</div></div></div>
+      <p>Shipped and live on CloudFront. Next.js static-export SPA → API Gateway (Cognito JWT) → async submit+poll Lambda → per-user DynamoDB history, calling <code>invoke-agent-runtime</code>. Renders the agent's markdown and <strong>interactive Vega-Lite charts</strong> (PNG/SVG export). Dark instrument-panel UI — Inter&nbsp;Tight + JetBrains&nbsp;Mono, framer-motion, and the reference component language (metric tiles, accent-stripe cards, READY verdict pill).</p>
+      <div class="foot"><div class="meter"><span class="bars e1"><i></i><i></i><i></i><i></i></span><span class="ml">shipped · live</span></div><span class="tpl">next: gate behind Identity</span></div>
+    </div>
+
+    <div class="tool">
+      <div class="th"><div><h4>Multi-agent (Strands GraphBuilder / A2A)</h4><div class="cat">Scale · agent-to-agent</div></div></div>
+      <p>Split network / room / call reasoning into specialist agents coordinated by a supervisor. Powerful, but only earns its keep once the single agent is genuinely overloaded. Start monolithic.</p>
+      <div class="foot"><div class="meter"><span class="bars e4"><i></i><i></i><i></i><i></i></span><span class="ml">a project</span></div><span class="tpl">→ later</span></div>
+    </div>
+  </div>
+
+  <div class="prose"><p class="hr-note">Each template above can be generated on request — an <code>agent/</code> or <code>infra/</code> drop-in matched to the repo's existing conventions (SAM for Lambda/Cognito, boto3 scripts for AgentCore resources). Ask for the specific one and it will be built against current AWS docs, not assumptions.</p></div>
+</section>
+
+<!-- ============ 7 · COST ============ -->
+<section>
+  <div class="shead"><div class="snum">07</div><div>
+    <h2>Cost model</h2>
+    <p class="sdek">AgentCore bills per component. For a read-only POC the numbers are small; the point is knowing which dials move if it scales. Rates as published, 2026.</p>
+  </div></div>
+  <div class="tiles">
+    <div class="tile"><div class="tl">Runtime · vCPU</div><div class="tv">$0.0895<small>/vCPU-hr</small></div><div class="tn">Billed per-second on <em>active</em> CPU only — sessions idle 80%+ of the time.</div></div>
+    <div class="tile"><div class="tl">Runtime · memory</div><div class="tv">$0.00945<small>/GB-hr</small></div><div class="tn">Peak memory over the session, per second, 1s minimum.</div></div>
+    <div class="tile"><div class="tl">Gateway · tools</div><div class="tv">$0.005<small>/1k</small></div><div class="tn">Per 1,000 tool invocations. Search queries $0.025/1k.</div></div>
+    <div class="tile"><div class="tl">Memory · short-term</div><div class="tv">$0.25<small>/1k</small></div><div class="tn">Per 1,000 events. Long-term $0.75/1k ($0.25 w/ custom strategy); retrieval $0.50/1k.</div></div>
+    <div class="tile"><div class="tl">Bedrock tokens</div><div class="tv">pass-through</div><div class="tn">Model input/output — the dominant cost on a chatty loop. Prompt caching cuts it (§05).</div></div>
+    <div class="tile"><div class="tl">Lambda + Secrets</div><div class="tv">cents</div><div class="tn">Negligible at POC volume; Secrets Manager ~$0.40/secret/mo.</div></div>
+  </div>
+  <div class="prose"><p>The honest headline for a reviewer: <strong>at POC query volumes the AgentCore infrastructure cost rounds to the model-token bill.</strong> Runtime's active-only billing means a hosted agent that answers a few questions a day costs a rounding error to keep warm — the argument against "just leave it on the laptop" is operational, not financial.</p></div>
+</section>
+
+<!-- ============ 8 · ROADMAP ============ -->
+<section style="border-bottom:none">
+  <div class="shead"><div class="snum">08</div><div>
+    <h2>Sequenced path to fully-hosted</h2>
+    <p class="sdek">What to do, in the order that de-risks fastest.</p>
+  </div></div>
+  <div class="road">
+    <div class="phase">
+      <div class="pl"><b>Phase 1</b><span>done · hosted</span></div>
+      <div class="pc"><h4>Host the driver — done</h4>
+        <p>The Runtime harness is live (Strands + Memory + <code>gateway-client</code> secret, env baked from SSM); the laptop is no longer load-bearing. Full OTEL Observability is the one remaining Phase-1 hygiene item (§05).</p>
+      </div>
+    </div>
+    <div class="phase">
+      <div class="pl"><b>Phase 2</b><span>Harden</span></div>
+      <div class="pc"><h4>Make it review-ready</h4>
+        <p>Fix the architecture mismatch (→ arm64 via CodeBuild), add the <code>config/locations.json</code> correlation map, add Guardrails, add the secret-cache TTL and the <code>REPLACE_ME</code> guard. Confirm/plan the <code>ap-southeast-2</code> re-home for residency.</p>
+      </div>
+    </div>
+    <div class="phase">
+      <div class="pl"><b>Phase 3</b><span>in progress</span></div>
+      <div class="pc"><h4>Multi-user surface</h4>
+        <p>The Next.js web console is <strong>shipped and live</strong> (Cognito login today). Remaining: adopt AgentCore Identity for per-user inbound OAuth, and add an Evaluations suite so changes can't regress silently.</p>
+      </div>
+    </div>
+    <div class="phase">
+      <div class="pl"><b>Phase 4</b><span>Extend</span></div>
+      <div class="pc"><h4>More sources, more analysis</h4>
+        <p>Add Webex (OpenAPI target) and Code Interpreter for real statistical correlation. Revisit MCP federation and multi-agent only if scale demands it.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer class="wrap">
+  <p><strong>Sources consulted for the current-capability and pricing claims in this document</strong> (AWS docs and pricing, 2026):</p>
+  <div class="refs">
+    <a href="https://aws.amazon.com/bedrock/agentcore/">Amazon Bedrock AgentCore — overview</a>
+    <a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/what-is-bedrock-agentcore.html">AgentCore developer guide</a>
+    <a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway.html">AgentCore Gateway concepts</a>
+    <a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-targets-mcp.html">Gateway MCP targets &amp; federation</a>
+    <a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-schema-openapi.html">Gateway OpenAPI targets</a>
+    <a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/observability.html">AgentCore Observability</a>
+    <a href="https://aws.amazon.com/bedrock/agentcore/pricing/">AgentCore pricing</a>
+    <a href="https://strandsagents.com/docs/user-guide/deploy/deploy_to_bedrock_agentcore/">Deploy Strands to AgentCore Runtime</a>
+    <a href="https://aws.amazon.com/blogs/machine-learning/strands-agents-sdk-a-technical-deep-dive-into-agent-architectures-and-observability/">Strands architecture &amp; observability</a>
+    <a href="https://aws.amazon.com/blogs/machine-learning/introducing-amazon-bedrock-agentcore-gateway-transforming-enterprise-ai-agent-tool-development/">Introducing AgentCore Gateway</a>
+  </div>
+  <p class="hr-note">Prepared from the deployed <code>neat-graph-bedrock</code> repository (SAM template, deploy scripts, shared clients, runtime harness spec &amp; plan, and session records) plus current AWS documentation. Palette and signal-bar language adapted from the shiftctrl.net RF coverage instrument. Account and gateway identifiers are the operator's own non-secret AWS resource ids.</p>
+</footer>

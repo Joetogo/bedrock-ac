@@ -17,7 +17,7 @@ build/
 *.env.runtime
 agent/.env.runtime
 
-# --- AgentCore local deploy config (contains account id / role & runtime ARNs) ---
+# --- AgentCore local deploy config (account id / role & runtime ARNs) ---
 .bedrock_agentcore.yaml
 .bedrock_agentcore/
 
@@ -35,3 +35,4 @@ Thumbs.db
 
 # --- Tooling scratch ---
 .superpowers/
+.publish-redact

@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Neat × Graph × ThousandEyes — Bedrock AgentCore Overview</title>
+<style>
+  :root {
+    --ink: #0e1620; --paper: #f6f8fb; --card: #ffffff;
+    --muted: #5a6675; --line: #dbe2ea; --line-strong: #c3cdd8;
+    --accent: #1f9bad; --accent-ink: #0d6b78;
+    --good: #3f9e6a; --good-bg: #e7f3ec;
+    --warn: #b9791f; --warn-bg: #f7efdc;
+    --bad: #bd4f3d; --bad-bg: #f7e4e0;
+    --code-bg: #eef2f7; --shadow: 0 1px 2px rgba(14,22,32,.06), 0 8px 24px rgba(14,22,32,.05);
+    --mono: ui-monospace, "Cascadia Code", "SF Mono", Consolas, "Liberation Mono", monospace;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --ink: #e7edf3; --paper: #0c1218; --card: #131c25;
+      --muted: #93a1b0; --line: #223040; --line-strong: #2f4152;
+      --accent: #3fc2d4; --accent-ink: #8fe3ee;
+      --good: #5fbd87; --good-bg: #16281f;
+      --warn: #d69b41; --warn-bg: #2c2413;
+      --bad: #db6f5c; --bad-bg: #2e1a16;
+      --code-bg: #0f1720; --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="light"] {
+    --ink: #0e1620; --paper: #f6f8fb; --card: #ffffff;
+    --muted: #5a6675; --line: #dbe2ea; --line-strong: #c3cdd8;
+    --accent: #1f9bad; --accent-ink: #0d6b78;
+    --good: #3f9e6a; --good-bg: #e7f3ec; --warn: #b9791f; --warn-bg: #f7efdc;
+    --bad: #bd4f3d; --bad-bg: #f7e4e0; --code-bg: #eef2f7;
+    --shadow: 0 1px 2px rgba(14,22,32,.06), 0 8px 24px rgba(14,22,32,.05);
+  }
+  :root[data-theme="dark"] {
+    --ink: #e7edf3; --paper: #0c1218; --card: #131c25;
+    --muted: #93a1b0; --line: #223040; --line-strong: #2f4152;
+    --accent: #3fc2d4; --accent-ink: #8fe3ee;
+    --good: #5fbd87; --good-bg: #16281f; --warn: #d69b41; --warn-bg: #2c2413;
+    --bad: #db6f5c; --bad-bg: #2e1a16; --code-bg: #0f1720;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 10px 30px rgba(0,0,0,.35);
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font-family: var(--sans); line-height: 1.6;
+    font-feature-settings: "kern";
+  }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 0 24px 96px; }
+  .prose { max-width: 68ch; }
+
+  header { border-bottom: 1px solid var(--line); margin-bottom: 40px; }
+  .masthead { max-width: 900px; margin: 0 auto; padding: 40px 24px 28px; }
+  .eyebrow {
+    font-family: var(--mono); font-size: 12px; letter-spacing: .22em;
+    text-transform: uppercase; color: var(--accent-ink); margin: 0 0 14px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .eyebrow::before { content: ""; width: 26px; height: 2px; background: var(--accent); display: inline-block; }
+  h1 {
+    font-size: clamp(28px, 5vw, 42px); line-height: 1.08; margin: 0 0 12px;
+    font-weight: 800; letter-spacing: -.02em; text-wrap: balance;
+  }
+  h1 .x { color: var(--accent); font-weight: 800; }
+  .dek { font-size: 18px; color: var(--muted); margin: 0; max-width: 62ch; }
+  .meta {
+    font-family: var(--mono); font-size: 12.5px; color: var(--muted);
+    margin-top: 20px; display: flex; flex-wrap: wrap; gap: 6px 20px;
+  }
+  .meta b { color: var(--ink); font-weight: 600; }
+
+  .status-strip {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 14px; margin: 28px 0 8px;
+  }
+  .stat {
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 16px 18px; box-shadow: var(--shadow); position: relative; overflow: hidden;
+  }
+  .stat::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--st, var(--accent)); }
+  .stat .k { font-family: var(--mono); font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+  .stat .v { font-size: 20px; font-weight: 750; margin-top: 4px; letter-spacing: -.01em; }
+  .stat .n { font-size: 13px; color: var(--muted); margin-top: 3px; }
+  .stat.good { --st: var(--good); }
+  .stat.warn { --st: var(--warn); }
+
+  section { margin-top: 52px; }
+  h2 { font-size: 22px; font-weight: 780; letter-spacing: -.01em; margin: 0 0 6px; padding-top: 10px; }
+  .sec-label {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .2em; text-transform: uppercase;
+    color: var(--accent-ink); margin: 0 0 4px;
+  }
+  h3 { font-size: 16px; font-weight: 700; margin: 32px 0 8px; letter-spacing: -.01em; }
+  p { margin: 12px 0; }
+  a { color: var(--accent-ink); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+
+  .pill {
+    display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono);
+    font-size: 11.5px; font-weight: 600; letter-spacing: .02em; padding: 2px 9px;
+    border-radius: 999px; border: 1px solid transparent; white-space: nowrap;
+  }
+  .pill::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .pill.ok { color: var(--good); background: var(--good-bg); }
+  .pill.no { color: var(--bad); background: var(--bad-bg); }
+  .pill.mid { color: var(--warn); background: var(--warn-bg); }
+
+  .twrap { overflow-x: auto; margin: 18px 0; border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; background: var(--card); }
+  th, td { text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  thead th {
+    font-family: var(--mono); font-size: 11px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted); background: var(--code-bg); border-bottom: 1px solid var(--line-strong);
+  }
+  tbody tr:last-child td { border-bottom: 0; }
+  td code, p code, li code { font-family: var(--mono); font-size: .86em; background: var(--code-bg); padding: 1px 6px; border-radius: 5px; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  pre.diagram {
+    overflow-x: auto; background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px 22px; box-shadow: var(--shadow); font-family: var(--mono); font-size: 13px;
+    line-height: 1.5; color: var(--ink); margin: 18px 0;
+  }
+  pre.diagram .c { color: var(--accent-ink); }
+  pre.diagram .m { color: var(--muted); }
+
+  ol.log { list-style: none; counter-reset: step; padding: 0; margin: 18px 0; }
+  ol.log > li {
+    position: relative; padding: 0 0 22px 42px; counter-increment: step;
+    border-left: 2px solid var(--line); margin-left: 12px;
+  }
+  ol.log > li:last-child { border-left-color: transparent; padding-bottom: 0; }
+  ol.log > li::before {
+    content: counter(step); position: absolute; left: -15px; top: -2px; width: 28px; height: 28px;
+    background: var(--card); border: 2px solid var(--line-strong); border-radius: 50%;
+    display: grid; place-items: center; font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--accent-ink);
+  }
+  ol.log h4 { margin: 0 0 4px; font-size: 15.5px; font-weight: 700; letter-spacing: -.01em; }
+  ol.log p { margin: 4px 0 0; color: var(--muted); font-size: 14px; }
+  ol.log .fixmeta { font-family: var(--mono); font-size: 12px; color: var(--accent-ink); margin-top: 6px; }
+
+  .callout {
+    border: 1px solid var(--line); border-left: 3px solid var(--accent); background: var(--card);
+    border-radius: 10px; padding: 14px 18px; margin: 18px 0; box-shadow: var(--shadow);
+  }
+  .callout .t { font-family: var(--mono); font-size: 11px; letter-spacing: .16em; text-transform: uppercase; color: var(--accent-ink); margin: 0 0 4px; }
+  .callout p { margin: 2px 0; font-size: 14.5px; }
+
+  footer { margin-top: 64px; padding-top: 24px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; font-family: var(--mono); }
+
+  @media (max-width: 620px) { .masthead, .wrap { padding-left: 18px; padding-right: 18px; } }
+</style>
+</head>
+<body>
+<header>
+  <div class="masthead">
+    <p class="eyebrow">Deployment Debrief · AWS Bedrock AgentCore</p>
+    <h1>Neat Pulse <span class="x">×</span> MS Graph <span class="x">×</span> ThousandEyes</h1>
+    <p class="dek">A natural-language MCP over meeting-room telemetry, Teams call quality, and network test results — brought live end-to-end, plus the design for a hosted agent that queries it in plain English.</p>
+    <div class="meta">
+      <span><b>Account</b> <account_id></span>
+      <span><b>Region</b> us-east-1</span>
+      <span><b>Gateway</b> neat-graph-bedrock-gw</span>
+      <span><b>Updated</b> 2026-07-08</span>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <div class="status-strip">
+    <div class="stat good">
+      <div class="k">Neat Pulse MCP</div>
+      <div class="v">Live</div>
+      <div class="n">rooms + sensors verified end-to-end</div>
+    </div>
+    <div class="stat good">
+      <div class="k">ThousandEyes MCP</div>
+      <div class="v">Live</div>
+      <div class="n">57 tests via OAuth Bearer (v7)</div>
+    </div>
+    <div class="stat good">
+      <div class="k">MS Graph MCP</div>
+      <div class="v">Wired</div>
+      <div class="n">call-records tools deployed</div>
+    </div>
+    <div class="stat warn">
+      <div class="k">Runtime Harness</div>
+      <div class="v">Designed</div>
+      <div class="n">Strands on AgentCore Runtime</div>
+    </div>
+  </div>
+
+  <section>
+    <p class="sec-label">01 · What this is</p>
+    <h2>One gateway, three telemetry sources, plain-English queries</h2>
+    <div class="prose">
+      <p>Amazon Bedrock drives a tool-use loop against a single <b>AgentCore Gateway</b>, which <em>is</em> the MCP server. Each upstream is a Lambda exposed as MCP tools; the Gateway injects each service's credential server-side, so the model never sees an API key.</p>
+      <p>The goal this session: prove all three integrations answer real questions through the deployed gateway — then design a hosted agent so those questions can be asked without running local scripts.</p>
+    </div>
+
+    <pre class="diagram">  NL query
+    <span class="m">│  (Bedrock Converse tool-use loop)</span>
+    ▼
+  <span class="c">AgentCore Gateway</span>  <span class="m">── MCP endpoint · Cognito JWT inbound auth</span>
+    ├── <span class="c">neat</span>          → Lambda → Neat Pulse / Sense API   <span class="m">(Bearer · Secrets Mgr)</span>
+    ├── <span class="c">graph</span>         → Lambda → MS Graph callRecords     <span class="m">(client credentials)</span>
+    ├── <span class="c">thousandeyes</span>  → Lambda → ThousandEyes v7 REST     <span class="m">(OAuth Bearer)</span>
+    └── <span class="c">correlate</span>     → Lambda → joins room ↔ call quality</pre>
+
+    <div class="callout">
+      <p class="t">Security property</p>
+      <p>Every tool is <b>read-only by construction</b> (GET requests only). Upstream credentials live in AWS Secrets Manager and are injected by the Lambda at call time — the Neat API key, the Graph secret, and the ThousandEyes token never enter the model context or <code>.env</code>.</p>
+    </div>
+  </section>
+
+  <section>
+    <p class="sec-label">02 · Incident &amp; fix log</p>
+    <h2>What was broken, and what fixed it</h2>
+    <div class="prose">
+      <p>Every layer of the plumbing was healthy — Cognito auth, the gateway, tool discovery, the Bedrock loop. The failures were all downstream: a placeholder secret, a wrong API path, a mis-packaged Lambda layer, and a ThousandEyes auth mismatch.</p>
+    </div>
+
+    <ol class="log">
+      <li>
+        <h4>Neat secret held <code>REPLACE_ME</code></h4>
+        <p>Real credentials existed only in an ap-southeast-2 secret under mismatched key names; the live us-east-1 stack read placeholders, so <code>orgs/REPLACE_ME/rooms</code> correctly 404'd.</p>
+        <p class="fixmeta">FIX → copied real <code>org_id</code> / <code>api_key</code> into the us-east-1 secret</p>
+      </li>
+      <li>
+        <h4>Neat sensor path was plural</h4>
+        <p>Code called <code>/rooms/{id}/sensors</code>; the Neat Pulse API path is singular <code>/sensor</code>. The API's own hint ("no matching operation") confirmed it.</p>
+        <p class="fixmeta">FIX → <code>handler.py</code> + <code>test_integrations.py</code> → <code>/sensor</code></p>
+      </li>
+      <li>
+        <h4>Lambdas crashed at import: <code>No module named '_shared'</code></h4>
+        <p>The shared layer was packaged as <code>python/python/_shared/</code> — a double nesting. <code>build_layer.sh</code> added a <code>python/</code> level and SAM's layer builder added its own, so the module was never importable. The neat/graph/correlate tools had never actually run.</p>
+        <p class="fixmeta">FIX → stage <code>_shared</code> at the layer root; rebuild → single <code>python/_shared/</code>; redeploy</p>
+      </li>
+      <li>
+        <h4>ThousandEyes 401 → 403 → 200</h4>
+        <p>The supplied 32-char credential was a legacy <b>v6 User API Token</b> (Basic auth, needs a username) — it returned 200 only on v6 <code>status.json</code> and 403 on every real resource, on both API versions. The v7 API requires an <b>OAuth Bearer Token</b>. Once a proper OAuth token was generated, v7 returned 200 with 57 real tests.</p>
+        <p class="fixmeta">FIX → OAuth Bearer Token in the <code>thousandeyes</code> secret; <code>te_get</code> reverted to clean Bearer</p>
+      </li>
+      <li>
+        <h4>Region split &amp; console polish</h4>
+        <p>The live stack is us-east-1; orphan secrets lingered in ap-southeast-2 (no stack there). The Makefile default region and an emoji-unsafe console print were corrected.</p>
+        <p class="fixmeta">FIX → <code>Makefile</code> default → us-east-1; <code>ask.py</code> forces UTF-8 stdout</p>
+      </li>
+    </ol>
+  </section>
+
+  <section>
+    <p class="sec-label">03 · ThousandEyes auth — the decisive detail</p>
+    <h2>v6 User API Token vs v7 OAuth Bearer</h2>
+    <div class="prose">
+      <p>The docs settled a long detour. The official ThousandEyes MCP confirms v7 auth is <b>Bearer, no username</b> — the "requires a username" symptom was the v6 model, a dead end for this integration.</p>
+    </div>
+    <div class="twrap">
+      <table>
+        <thead><tr><th>Auth method</th><th>Endpoint</th><th>Result</th></tr></thead>
+        <tbody>
+          <tr><td><code>Bearer &lt;v6 token&gt;</code></td><td class="num">v7 /tests</td><td><span class="pill no">401 invalid_token</span></td></tr>
+          <tr><td><code>Basic user:token</code></td><td class="num">v7 /tests</td><td><span class="pill no">403 forbidden</span></td></tr>
+          <tr><td><code>Basic user:token</code></td><td class="num">v6 /status.json</td><td><span class="pill mid">200 (no perms needed)</span></td></tr>
+          <tr><td><code>Basic user:token</code></td><td class="num">v6 /tests.json</td><td><span class="pill no">403 forbidden</span></td></tr>
+          <tr><td><code>Bearer &lt;OAuth token&gt;</code></td><td class="num">v7 /tests</td><td><span class="pill ok">200 · 57 tests</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="prose"><b>Takeaway:</b> a rebuild onto v6 would not have helped — every data endpoint 403'd on both versions with the old token. The fix was the token <em>type</em>, not the API version. v7 is also the current, non-deprecated surface.</p>
+  </section>
+
+  <section>
+    <p class="sec-label">04 · Live verification</p>
+    <h2>Answered through the deployed gateway</h2>
+    <div class="prose"><p>A single natural-language query drove tool calls across two upstreams in one turn — the payoff test.</p></div>
+    <div class="twrap">
+      <table>
+        <thead><tr><th>Surface</th><th>Tool called</th><th>Real data returned</th></tr></thead>
+        <tbody>
+          <tr><td>Neat Pulse</td><td><code>neat_list_rooms</code></td><td>6 rooms — Joe's Bar 2, Joe's Frame, Opotiki / Twizel / Waimate / Whangamata Hub</td></tr>
+          <tr><td>Neat Sense</td><td><code>neat_room_sensors</code></td><td>Room 26 — people=1, temp/CO₂ reporting</td></tr>
+          <tr><td>ThousandEyes</td><td><code>te_list_tests_alerts</code></td><td>57 tests incl. MSTeams Audio/Video, SDWAN head-ends</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <p class="sec-label">05 · Next phase · approved design</p>
+    <h2>AgentCore Runtime harness (Strands)</h2>
+    <div class="prose">
+      <p>Move the <code>ask.py</code> Converse loop off the laptop and host it as an <b>AgentCore Runtime</b> agent built with the <b>Strands Agents SDK</b>, so the deployment answers plain-English questions via the console / CLI — with <b>AgentCore Memory</b> for multi-turn recall.</p>
+    </div>
+
+    <pre class="diagram">  <span class="m">Operator (CLI: agentcore invoke) — {prompt, sessionId}</span>
+    ▼
+  <span class="c">AgentCore Runtime</span>  <span class="m">(containerized Strands agent)</span>
+    ├── Strands Agent  → Bedrock <span class="m">(auto-selected Claude profile)</span>
+    ├── <span class="c">AgentCore Memory</span>  <span class="m">← recalls prior turns by sessionId</span>
+    └── MCPClient ──► <span class="c">existing Gateway MCP</span>  <span class="m">(Cognito JWT)</span>
+                        └── neat_* / graph_* / te_* / correlate_*  <span class="m">(read-only)</span></pre>
+
+    <div class="twrap">
+      <table>
+        <thead><tr><th>Decision</th><th>Choice</th></tr></thead>
+        <tbody>
+          <tr><td>Query surface</td><td>Bedrock / AgentCore console + CLI <span class="pill ok">no UI to build</span></td></tr>
+          <tr><td>Memory</td><td>Multi-turn via AgentCore Memory, keyed by <code>sessionId</code></td></tr>
+          <tr><td>Framework</td><td>Strands Agents SDK on AgentCore Runtime</td></tr>
+          <tr><td>Runtime → Gateway auth</td><td>Cognito client-credentials, id/secret from <code>neat-graph-bedrock/gateway-client</code> secret</td></tr>
+          <tr><td>Read-only</td><td><span class="pill ok">preserved by construction</span> — only gateway GET tools reachable</td></tr>
+          <tr><td>Deploy</td><td><code>scripts/deploy_runtime.py</code> (boto3, mirrors <code>deploy_gateway.py</code>)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="prose">Full design: <code>docs/superpowers/specs/2026-07-08-agentcore-runtime-harness-design.md</code>. Next step is a detailed implementation plan.</p>
+  </section>
+
+  <footer>
+    neat-graph-bedrock · Bedrock AgentCore · us-east-1 · generated 2026-07-08
+  </footer>
+
+</div>
+</body>
+</html>
