@@ -1,0 +1,789 @@
+<title>AWS Bedrock AgentCore — Unified Comms Architecture</title>
+<style>
+/* ============================================================= *
+   AWS Bedrock AgentCore — Unified Communications Observability.
+   Instrument-panel reference language: light readout ground, teal
+   accent, RF signal-strength green/amber/red reused as severity +
+   delivery effort. Inherited from the neat-graph-bedrock reference.
+ * ============================================================= */
+
+:root{
+  --paper:#ffffff;
+  --ground:#f3f7f8;
+  --ground-2:#e9f0f1;
+  --panel:#ffffff;
+  --ink:#0e1b20;
+  --ink-2:#33464c;
+  --ink-3:#6c7f86;
+  --line:#d6e0e2;
+  --line-2:#bccbce;
+  --accent:#0e8f8a;
+  --accent-bright:#12b3aa;
+  --accent-ink:#075e5a;
+  --accent-tint:#e2f3f1;
+  --good:#12924a;
+  --good-tint:#e3f4e9;
+  --warn:#c9760a;
+  --warn-tint:#fbeed6;
+  --crit:#d0322d;
+  --crit-tint:#fbe4e2;
+  --code-bg:#0f2226;
+  --code-ink:#d6e7e7;
+  --shadow:0 1px 2px rgba(14,27,32,.05), 0 8px 24px -12px rgba(14,27,32,.18);
+  --radius:10px;
+  --maxw:1080px;
+  --read:68ch;
+  --mono:ui-monospace,"Cascadia Code","JetBrains Mono","SF Mono",Consolas,"Liberation Mono",monospace;
+  --sans:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root{
+    --paper:#101e22;--ground:#0a1418;--ground-2:#16272c;--panel:#132328;
+    --ink:#e7eff0;--ink-2:#b0c3c7;--ink-3:#7d9299;--line:#22383e;--line-2:#31494f;
+    --accent:#2dd4c4;--accent-bright:#48ecdb;--accent-ink:#bff6f0;--accent-tint:#123330;
+    --good:#37cf7d;--good-tint:#10281c;--warn:#f2a83c;--warn-tint:#2c2110;--crit:#f0716b;--crit-tint:#2c1513;
+    --code-bg:#0a171a;--code-ink:#cfe6e5;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 10px 30px -14px rgba(0,0,0,.6);
+  }
+}
+:root[data-theme="light"]{
+  --paper:#ffffff;--ground:#f3f7f8;--ground-2:#e9f0f1;--panel:#ffffff;
+  --ink:#0e1b20;--ink-2:#33464c;--ink-3:#6c7f86;--line:#d6e0e2;--line-2:#bccbce;
+  --accent:#0e8f8a;--accent-bright:#12b3aa;--accent-ink:#075e5a;--accent-tint:#e2f3f1;
+  --good:#12924a;--good-tint:#e3f4e9;--warn:#c9760a;--warn-tint:#fbeed6;--crit:#d0322d;--crit-tint:#fbe4e2;
+  --code-bg:#0f2226;--code-ink:#d6e7e7;--shadow:0 1px 2px rgba(14,27,32,.05),0 8px 24px -12px rgba(14,27,32,.18);
+}
+:root[data-theme="dark"]{
+  --paper:#101e22;--ground:#0a1418;--ground-2:#16272c;--panel:#132328;
+  --ink:#e7eff0;--ink-2:#b0c3c7;--ink-3:#7d9299;--line:#22383e;--line-2:#31494f;
+  --accent:#2dd4c4;--accent-bright:#48ecdb;--accent-ink:#bff6f0;--accent-tint:#123330;
+  --good:#37cf7d;--good-tint:#10281c;--warn:#f2a83c;--warn-tint:#2c2110;--crit:#f0716b;--crit-tint:#2c1513;
+  --code-bg:#0a171a;--code-ink:#cfe6e5;--shadow:0 1px 2px rgba(0,0,0,.3),0 10px 30px -14px rgba(0,0,0,.6);
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{
+  margin:0;background:var(--ground);color:var(--ink);
+  font-family:var(--sans);font-size:16px;line-height:1.65;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;
+}
+
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 clamp(18px,4vw,40px)}
+.prose{max-width:var(--read)}
+
+/* top bar */
+.topbar{position:sticky;top:0;z-index:20;background:color-mix(in srgb,var(--paper) 88%,transparent);backdrop-filter:saturate(1.4) blur(10px);border-bottom:1px solid var(--line)}
+.topbar .wrap{display:flex;align-items:center;gap:14px;height:54px}
+.topbar .mark{font-family:var(--mono);font-size:.74rem;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.topbar .mark b{color:var(--accent)}
+.topbar .live{margin-left:auto;display:inline-flex;align-items:center;gap:7px;font-family:var(--mono);font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-2)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--good);box-shadow:0 0 0 3px var(--good-tint)}
+
+/* hero */
+.hero{padding:clamp(46px,8vw,92px) 0 clamp(30px,5vw,52px);border-bottom:1px solid var(--line);background:radial-gradient(120% 90% at 88% -10%, var(--accent-tint) 0%, transparent 55%)}
+.eyebrow{font-family:var(--mono);font-size:.76rem;letter-spacing:.2em;text-transform:uppercase;color:var(--accent-ink);margin:0 0 18px;display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.eyebrow .sep{color:var(--line-2)}
+h1{font-size:clamp(2.1rem,5.2vw,3.5rem);line-height:1.04;letter-spacing:-.02em;font-weight:760;margin:0 0 20px;text-wrap:balance;max-width:22ch}
+.hero .lede{font-size:clamp(1.06rem,2vw,1.28rem);color:var(--ink-2);max-width:62ch;margin:0}
+.metastrip{display:flex;flex-wrap:wrap;gap:10px 26px;margin-top:34px;padding-top:22px;border-top:1px dashed var(--line-2)}
+.metastrip div{font-family:var(--mono);font-size:.78rem;color:var(--ink-2)}
+.metastrip span{display:block;font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;color:var(--ink-3);margin-bottom:3px}
+
+/* sections */
+section{padding:clamp(40px,6vw,72px) 0;border-bottom:1px solid var(--line)}
+.shead{display:flex;gap:16px;align-items:baseline;margin-bottom:8px}
+.snum{font-family:var(--mono);font-size:.82rem;font-weight:600;color:var(--accent);letter-spacing:.06em;padding-top:.35em}
+h2{font-size:clamp(1.5rem,3.2vw,2.1rem);letter-spacing:-.015em;line-height:1.12;margin:0;font-weight:720;text-wrap:balance}
+.sdek{color:var(--ink-2);font-size:1.02rem;margin:.4em 0 0;max-width:var(--read)}
+h3{font-size:1.14rem;letter-spacing:-.01em;margin:2.4em 0 .7em;font-weight:680}
+h3 .k{font-family:var(--mono);font-size:.7em;color:var(--ink-3);font-weight:500}
+p{margin:0 0 1.05em}
+.prose p,.prose li{color:var(--ink-2)}
+strong{color:var(--ink);font-weight:640}
+a{color:var(--accent-ink);text-decoration:underline;text-decoration-color:var(--line-2);text-underline-offset:2px}
+a:hover{text-decoration-color:var(--accent)}
+ul.clean{list-style:none;padding:0;margin:0 0 1em}
+ul.clean li{position:relative;padding-left:22px;margin:.5em 0;color:var(--ink-2)}
+ul.clean li::before{content:"";position:absolute;left:2px;top:.62em;width:6px;height:6px;border-radius:1px;background:var(--accent);transform:rotate(45deg)}
+
+/* code */
+code{font-family:var(--mono);font-size:.86em;background:var(--ground-2);padding:.12em .4em;border-radius:5px;color:var(--ink);border:1px solid var(--line)}
+pre{margin:1.2em 0;background:var(--code-bg);color:var(--code-ink);border-radius:var(--radius);padding:18px 20px;overflow-x:auto;border:1px solid rgba(255,255,255,.06);box-shadow:var(--shadow);font-size:.83rem;line-height:1.6}
+pre code{background:none;border:none;padding:0;color:inherit;font-size:inherit}
+.pre-cap{font-family:var(--mono);font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;color:var(--ink-3);margin:1.4em 0 -.4em}
+.tok-c{color:#7fa7a3}.tok-k{color:#5ad0c4}.tok-s{color:#c7b98a}.tok-d{color:#9fb4b8}
+
+/* thesis callout */
+.thesis{background:var(--panel);border:1px solid var(--line);border-left:3px solid var(--accent);border-radius:var(--radius);padding:20px 24px;box-shadow:var(--shadow);margin:1.4em 0 4px}
+.thesis p:last-child{margin-bottom:0}
+
+/* SVG architecture diagram */
+.figwrap{margin:1.6em 0;overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);box-shadow:var(--shadow);padding:10px}
+.figwrap svg{display:block;width:100%;min-width:720px;height:auto}
+.dg-box{fill:var(--panel);stroke:var(--line);stroke-width:1.2}
+.dg-accent{fill:var(--accent-tint);stroke:var(--accent);stroke-width:1.4}
+.dg-ghost{fill:var(--panel);stroke:var(--line-2);stroke-width:1.2;stroke-dasharray:4 3}
+.dg-lane{fill:var(--ground-2);stroke:var(--line);stroke-width:1}
+.dg-t{fill:var(--ink);font-family:var(--sans);font-size:13px;font-weight:640}
+.dg-s{fill:var(--ink-3);font-family:var(--mono);font-size:10px}
+.dg-al{fill:var(--accent-ink);font-family:var(--sans);font-size:13px;font-weight:640}
+.dg-flow{stroke:var(--line-2);stroke-width:1.6;fill:none}
+.dg-ah{fill:var(--line-2)}
+.dg-bound{fill:none;stroke:var(--accent);stroke-width:1.3;stroke-dasharray:6 4;opacity:.8}
+.dg-bt{fill:var(--accent-ink);font-family:var(--mono);font-size:10px;letter-spacing:.08em}
+.dg-badge{fill:var(--good);font-family:var(--mono);font-size:9px;font-weight:700}
+.dg-poc{fill:var(--warn);font-family:var(--mono);font-size:9px;font-weight:700}
+
+/* top-down band/node diagram */
+.diagram{margin:1.6em 0;overflow-x:auto}
+.diagram-inner{min-width:660px;display:flex;flex-direction:column;gap:0}
+.band{display:grid;grid-template-columns:132px 1fr;gap:16px;align-items:stretch;padding:6px 0}
+.band-label{font-family:var(--mono);font-size:.66rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);display:flex;align-items:center}
+.band-body{display:flex;gap:10px;flex-wrap:wrap}
+.node{flex:1 1 auto;min-width:120px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:11px 13px;box-shadow:var(--shadow)}
+.node .nt{font-weight:640;font-size:.9rem;display:flex;align-items:center;gap:7px}
+.node .nd{font-family:var(--mono);font-size:.7rem;color:var(--ink-3);margin-top:3px;line-height:1.4}
+.node.accent{border-color:var(--accent);background:var(--accent-tint)}
+.node.accent .nt{color:var(--accent-ink)}
+.node.ghost{border-style:dashed;opacity:.9}
+.flow{display:flex;justify-content:center;padding:2px 0;color:var(--line-2)}
+.flow svg{width:16px;height:16px}
+.tag{font-family:var(--mono);font-size:.6rem;letter-spacing:.08em;text-transform:uppercase;padding:2px 6px;border-radius:20px;border:1px solid var(--line-2);color:var(--ink-3);white-space:nowrap}
+.tag.ro{color:var(--good);border-color:var(--good)}
+.tag.new{color:var(--accent-ink);border-color:var(--accent);background:var(--accent-tint)}
+.tag.poc{color:var(--warn);border-color:var(--warn)}
+
+/* tables */
+.tablewrap{overflow-x:auto;margin:1.3em 0;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+table{border-collapse:collapse;width:100%;min-width:560px;font-size:.9rem;background:var(--panel)}
+th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:top}
+thead th{font-family:var(--mono);font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);background:var(--ground-2);position:sticky;top:0}
+tbody tr:last-child td{border-bottom:none}
+td code{font-size:.82em}
+.num{font-variant-numeric:tabular-nums;font-family:var(--mono)}
+.wt{min-width:860px}
+
+/* status pills */
+.pill{display:inline-flex;align-items:center;gap:6px;font-family:var(--mono);font-size:.68rem;font-weight:600;letter-spacing:.04em;padding:3px 9px;border-radius:20px;white-space:nowrap}
+.pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}
+.pill.live{color:var(--good);background:var(--good-tint)}
+.pill.poc{color:var(--warn);background:var(--warn-tint)}
+.pill.design{color:var(--accent-ink);background:var(--accent-tint)}
+
+/* severity chips (used in tables) */
+.sev{font-family:var(--mono);font-size:.62rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:2px 8px;border-radius:4px;white-space:nowrap}
+.sev.crit{color:var(--crit);background:var(--crit-tint)}
+.sev.warn{color:var(--warn);background:var(--warn-tint)}
+.sev.good{color:var(--good);background:var(--good-tint)}
+
+/* signal-bar effort meter */
+.bars{display:inline-flex;gap:3px;align-items:flex-end;height:16px;vertical-align:middle}
+.bars i{width:5px;border-radius:1px;background:var(--line-2);display:block}
+.bars i:nth-child(1){height:6px}.bars i:nth-child(2){height:9px}.bars i:nth-child(3){height:12px}.bars i:nth-child(4){height:16px}
+.bars.e1 i:nth-child(-n+4){background:var(--good)}
+.bars.e2 i:nth-child(-n+3){background:var(--good)}
+.bars.e3 i:nth-child(-n+2){background:var(--warn)}
+.bars.e4 i:nth-child(-n+1){background:var(--crit)}
+.effcell{display:flex;align-items:center;gap:8px}
+.effcell .el{font-family:var(--mono);font-size:.64rem;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-2)}
+
+/* toolset cards */
+.grid2{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;margin:1.4em 0}
+.tool{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:8px}
+.tool .th{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.tool h4{margin:0;font-size:1.04rem;font-weight:680;letter-spacing:-.01em}
+.tool .cat{font-family:var(--mono);font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin-top:2px}
+.tool p{font-size:.9rem;margin:.1em 0 0;color:var(--ink-2)}
+.tool .foot{margin-top:auto;padding-top:10px;border-top:1px dashed var(--line);display:flex;align-items:center;justify-content:space-between;gap:10px}
+.meter{display:flex;align-items:center;gap:8px}
+.meter .ml{font-family:var(--mono);font-size:.64rem;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-2)}
+.tpl{font-family:var(--mono);font-size:.64rem;color:var(--accent-ink);white-space:nowrap}
+
+/* legend */
+.legend{display:flex;flex-wrap:wrap;gap:16px;margin:1.1em 0;padding:12px 16px;background:var(--ground-2);border:1px solid var(--line);border-radius:var(--radius);font-size:.82rem;color:var(--ink-2)}
+.legend .li{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:.72rem}
+
+/* footer */
+footer{padding:44px 0 70px;color:var(--ink-3);font-size:.84rem}
+footer .refs{columns:2 260px;column-gap:32px;margin:1em 0 0}
+footer .refs a{display:block;margin:.35em 0;font-family:var(--mono);font-size:.74rem;break-inside:avoid}
+.hr-note{font-family:var(--mono);font-size:.72rem;color:var(--ink-3);border-top:1px dashed var(--line-2);padding-top:16px;margin-top:26px}
+
+@media (max-width:640px){
+  .band{grid-template-columns:1fr;gap:6px}
+  .band-label{margin-top:6px}
+  footer .refs{columns:1}
+}
+
+/* ---- print / PDF ---- */
+@media print{
+  :root{
+    --paper:#ffffff;--ground:#ffffff;--ground-2:#eef4f5;--panel:#ffffff;
+    --ink:#0e1b20;--ink-2:#33464c;--ink-3:#6c7f86;--line:#cfdadc;--line-2:#b3c3c5;
+    --accent:#0e8f8a;--accent-ink:#075e5a;--accent-tint:#e2f3f1;
+    --good:#12924a;--good-tint:#e3f4e9;--warn:#b9690a;--warn-tint:#fbeed6;--crit:#c22c27;--crit-tint:#fbe4e2;
+    --shadow:none;
+  }
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  html,body{background:#fff}
+  .topbar{position:static;box-shadow:none}
+  .hero{padding:6mm 0 5mm;background:none}
+  section{padding:6mm 0;break-inside:auto}
+  a{color:var(--ink);text-decoration:none}
+  h2,h3,.shead{break-after:avoid}
+  .thesis,.tool,.legend,.figwrap,tr,.band,.node,.diagram{break-inside:avoid}
+  .grid2{grid-template-columns:1fr 1fr}
+  thead th{position:static}
+  .figwrap svg,.diagram-inner{min-width:0}
+  footer{padding:8mm 0 0}
+  .tablewrap{overflow:visible}
+  @page{size:A4 portrait;margin:14mm 12mm}
+  @page land{size:A4 landscape;margin:12mm 14mm}
+  section.land{page:land;break-before:page;break-after:page}
+  section.land .wt{min-width:0;width:100%}
+  .reveal{animation:none;opacity:1;transform:none}
+}
+.reveal{opacity:0;transform:translateY(10px);animation:rise .7s cubic-bezier(.2,.7,.3,1) forwards}
+@keyframes rise{to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.reveal{animation:none;opacity:1;transform:none}}
+</style>
+
+<div class="topbar">
+  <div class="wrap">
+    <div class="mark"><b>◢◤</b> AWS · Bedrock AgentCore &nbsp;·&nbsp; Unified Communications Observability</div>
+    <div class="live"><span class="dot"></span> target ap-southeast-2 · Teams + Webex approved · ThousandEyes POC</div>
+  </div>
+</div>
+
+<header class="hero">
+  <div class="wrap reveal">
+    <p class="eyebrow">
+      <span>Solution architecture</span><span class="sep">/</span>
+      <span>Prepared for ANZ</span><span class="sep">/</span>
+      <span>Unified communications</span>
+    </p>
+    <h1>Ask your comms estate a question — in plain English.</h1>
+    <p class="lede">One conversational agent that reads <strong>Microsoft Teams</strong> call quality and <strong>Cisco Webex</strong> device &amp; workspace health — with <strong>Cisco ThousandEyes</strong> network telemetry wired in POC — and answers a stakeholder's plain-English question about platform and service status. It runs entirely in AWS: the agent on <strong>Amazon Bedrock AgentCore Runtime</strong>, the model on <strong>Amazon Bedrock (Nova)</strong>, every data source consolidated behind an <strong>AgentCore Gateway acting as the MCP server</strong>, reached through a browser <strong>web console</strong>. Read-only by construction; every upstream credential is injected server-side.</p>
+    <div class="metastrip">
+      <div><span>Pattern</span>Gateway-as-MCP · server-side credential injection</div>
+      <div><span>Contract</span>Read-only by construction</div>
+      <div><span>Surface</span>Web console · S3 + CloudFront · Cognito</div>
+      <div><span>Region (target)</span>ap-southeast-2 · Sydney</div>
+      <div><span>Integrations</span>Teams + Webex approved · ThousandEyes POC</div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+<!-- ============ 1 · SOLUTION ============ -->
+<section>
+  <div class="shead"><div class="snum">01</div><div>
+    <h2>What it is — and the problem it solves</h2>
+    <p class="sdek">The one-paragraph version, then the gap it closes.</p>
+  </div></div>
+  <div class="prose">
+    <div class="thesis">
+      <p>The solution is a single conversational agent that turns plain-English questions into <strong>governed, read-only queries</strong> across the unified-communications estate. The consolidation point is an <strong>Amazon Bedrock AgentCore Gateway acting as the MCP server</strong>: each platform — Teams, Webex, and (in POC) ThousandEyes — is exposed to the model as a set of read-only tools, and the Gateway injects every upstream credential <strong>server-side</strong>, so the model never sees a Teams application secret or a Webex token. The agent runs on <strong>AgentCore Runtime</strong>; the model is <strong>Amazon Bedrock (Nova)</strong>; the front door is a browser <strong>web console</strong> (static SPA on S3 + CloudFront, Cognito login). One pane, plain English, no dashboard-hopping.</p>
+    </div>
+    <p><strong>The gap it closes.</strong> Today a stakeholder asking "is our comms platform healthy right now, and where's the fault?" has to open the <strong>Teams admin centre</strong>, <strong>Webex Control Hub</strong>, and — separately — <strong>ThousandEyes</strong>: three consoles, three data models, three logins, and no correlation between them. Answering a cross-platform question ("did the Webex room that dropped also show Teams jitter, and was the network path clean?") is manual, slow, and needs a specialist in each tool. This solution consolidates that ingest behind one MCP surface and lets <em>anyone</em> ask in natural language — closing a real observability gap by <strong>consolidating tool-target ingest via MCP</strong> and putting an AI query layer in front of it.</p>
+    <div class="legend" aria-hidden="true">
+      <span class="li"><span class="pill live">approved</span> live &amp; approved for ANZ</span>
+      <span class="li"><span class="pill poc">POC</span> proof-of-concept · not yet approved</span>
+      <span class="li"><span class="pill design">planned</span> specced, not built</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 2 · ARCHITECTURE ============ -->
+<section>
+  <div class="shead"><div class="snum">02</div><div>
+    <h2>The architecture — end to end</h2>
+    <p class="sdek">First as a flow diagram with the trust boundary made explicit, then as a top-down component map.</p>
+  </div></div>
+
+  <div class="figwrap" role="img" aria-label="Left-to-right architecture: stakeholder through web console, web API, AgentCore Runtime and Bedrock Nova, to the AgentCore Gateway MCP server, fanning out to read-only Lambda tool targets, Secrets Manager, and the Teams, Webex and ThousandEyes upstreams inside a read-only trust boundary.">
+    <svg viewBox="0 0 1040 560" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arw" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0 L10 5 L0 10 z" class="dg-ah"/></marker>
+      </defs>
+
+      <!-- request path (top row) -->
+      <g>
+        <rect class="dg-box" x="16" y="60" width="168" height="62" rx="8"/>
+        <text class="dg-t" x="100" y="86" text-anchor="middle">Stakeholder</text>
+        <text class="dg-s" x="100" y="104" text-anchor="middle">browser · plain English</text>
+
+        <rect class="dg-accent" x="220" y="60" width="168" height="62" rx="8"/>
+        <text class="dg-al" x="304" y="86" text-anchor="middle">Web Console</text>
+        <text class="dg-s" x="304" y="104" text-anchor="middle">S3 + CloudFront · Cognito</text>
+
+        <rect class="dg-box" x="424" y="60" width="168" height="62" rx="8"/>
+        <text class="dg-t" x="508" y="80" text-anchor="middle">Web API</text>
+        <text class="dg-s" x="508" y="97" text-anchor="middle">API GW (JWT) · async</text>
+        <text class="dg-s" x="508" y="110" text-anchor="middle">Lambda · DynamoDB</text>
+
+        <rect class="dg-accent" x="628" y="60" width="168" height="62" rx="8"/>
+        <text class="dg-al" x="712" y="80" text-anchor="middle">AgentCore Runtime</text>
+        <text class="dg-s" x="712" y="97" text-anchor="middle">Strands agent</text>
+        <text class="dg-s" x="712" y="110" text-anchor="middle">Bedrock · Amazon Nova</text>
+
+        <rect class="dg-accent" x="832" y="60" width="192" height="62" rx="8"/>
+        <text class="dg-al" x="928" y="80" text-anchor="middle">AgentCore Gateway</text>
+        <text class="dg-s" x="928" y="97" text-anchor="middle">MCP server · JWT in</text>
+        <text class="dg-s" x="928" y="110" text-anchor="middle">IAM role out</text>
+      </g>
+
+      <!-- request path arrows -->
+      <path class="dg-flow" d="M184 91 H220" marker-end="url(#arw)"/>
+      <path class="dg-flow" d="M388 91 H424" marker-end="url(#arw)"/>
+      <path class="dg-flow" d="M592 91 H628" marker-end="url(#arw)"/>
+      <path class="dg-flow" d="M796 91 H832" marker-end="url(#arw)"/>
+
+      <!-- read-only trust boundary -->
+      <rect class="dg-bound" x="196" y="150" width="828" height="392" rx="12"/>
+      <text class="dg-bt" x="212" y="170">READ-ONLY TRUST BOUNDARY · credentials injected server-side · the model never sees a secret</text>
+
+      <!-- gateway drops to a bus, bus drops to targets -->
+      <path class="dg-flow" d="M928 122 V196" marker-end="url(#arw)"/>
+      <path class="dg-flow" d="M300 196 H928"/>
+      <path class="dg-flow" d="M300 196 V232" marker-end="url(#arw)"/>
+      <path class="dg-flow" d="M468 196 V232" marker-end="url(#arw)"/>
+      <path class="dg-flow" d="M636 196 V232" marker-end="url(#arw)"/>
+      <path class="dg-flow" d="M804 196 V232" marker-end="url(#arw)"/>
+
+      <!-- tool targets -->
+      <g>
+        <rect class="dg-box" x="228" y="232" width="144" height="58" rx="8"/>
+        <text class="dg-badge" x="300" y="250" text-anchor="middle">APPROVED</text>
+        <text class="dg-t" x="300" y="266" text-anchor="middle">graph_calls</text>
+        <text class="dg-s" x="300" y="281" text-anchor="middle">Teams · 2 tools</text>
+
+        <rect class="dg-box" x="396" y="232" width="144" height="58" rx="8"/>
+        <text class="dg-badge" x="468" y="250" text-anchor="middle">APPROVED</text>
+        <text class="dg-t" x="468" y="266" text-anchor="middle">webex</text>
+        <text class="dg-s" x="468" y="281" text-anchor="middle">Webex · 3 tools</text>
+
+        <rect class="dg-ghost" x="564" y="232" width="144" height="58" rx="8"/>
+        <text class="dg-poc" x="636" y="250" text-anchor="middle">POC</text>
+        <text class="dg-t" x="636" y="266" text-anchor="middle">thousandeyes</text>
+        <text class="dg-s" x="636" y="281" text-anchor="middle">network · 4 tools</text>
+
+        <rect class="dg-box" x="732" y="232" width="144" height="58" rx="8"/>
+        <text class="dg-t" x="804" y="260" text-anchor="middle">correlate</text>
+        <text class="dg-s" x="804" y="276" text-anchor="middle">server-side join</text>
+      </g>
+
+      <!-- secrets lane -->
+      <rect class="dg-lane" x="228" y="316" width="648" height="34" rx="6"/>
+      <text class="dg-s" x="552" y="337" text-anchor="middle">Secrets Manager — each target reads only its own secret (Teams app-only · Webex token · TE bearer), injected server-side</text>
+      <path class="dg-flow" d="M300 290 V316"/>
+      <path class="dg-flow" d="M468 290 V316"/>
+      <path class="dg-flow" d="M636 290 V316"/>
+
+      <!-- targets -> upstreams -->
+      <path class="dg-flow" d="M300 350 V402" marker-end="url(#arw)"/>
+      <path class="dg-flow" d="M468 350 V402" marker-end="url(#arw)"/>
+      <path class="dg-flow" d="M636 350 V402" marker-end="url(#arw)"/>
+      <!-- correlate joins across upstreams (dashed) -->
+      <path class="dg-flow" d="M804 290 V376 H322" stroke-dasharray="4 3" marker-end="url(#arw)"/>
+
+      <!-- upstreams -->
+      <g>
+        <rect class="dg-box" x="208" y="402" width="184" height="58" rx="8"/>
+        <text class="dg-t" x="300" y="426" text-anchor="middle">MS Graph callRecords</text>
+        <text class="dg-s" x="300" y="443" text-anchor="middle">graph.microsoft.com · app-only</text>
+
+        <rect class="dg-box" x="404" y="402" width="184" height="58" rx="8"/>
+        <text class="dg-t" x="496" y="426" text-anchor="middle">Cisco Webex</text>
+        <text class="dg-s" x="496" y="443" text-anchor="middle">Devices / Workspaces API</text>
+
+        <rect class="dg-ghost" x="600" y="402" width="184" height="58" rx="8"/>
+        <text class="dg-t" x="692" y="426" text-anchor="middle">Cisco ThousandEyes</text>
+        <text class="dg-s" x="692" y="443" text-anchor="middle">api.thousandeyes.com · POC</text>
+      </g>
+    </svg>
+  </div>
+
+  <div class="prose">
+    <p>The load-bearing idea is the <strong>Gateway</strong>: it <em>is</em> the MCP server. Each Lambda is registered as a Gateway target with an inline tool schema, so the model discovers <code>graph_call_quality</code>, <code>webex_device_status</code> and the rest as first-class MCP tools. Inbound calls carry a JWT (Cognito today, Entra-fronted later); outbound Lambda invocation uses the Gateway's own IAM role. That credential-injection boundary is the whole security story — <strong>upstream secrets never cross into the model context.</strong></p>
+    <div class="thesis">
+      <p><strong>Hosting — S3 origin, CloudFront delivery.</strong> The console is a static export in a <strong>private S3 bucket</strong>; CloudFront (Origin Access Control) is the only reader, and it's where TLS (ACM), AWS WAF, security headers and the custom domain attach. S3 static-website hosting is HTTP-only and forces the bucket public — not an option for a bank — so <strong>CloudFront stays in front of S3</strong>. You can host the files in S3 either way; CloudFront is the security and delivery layer, not an optional CDN.</p>
+    </div>
+  </div>
+
+  <h3 class="prose">The same stack, top-down <span class="k">// component map</span></h3>
+  <div class="diagram" role="img" aria-label="Top-down component map from surface to upstreams">
+    <div class="diagram-inner">
+      <div class="band">
+        <div class="band-label">Surface</div>
+        <div class="band-body">
+          <div class="node accent"><div class="nt">Web console</div><div class="nd">Next.js static SPA · S3 + CloudFront (OAC) · Cognito PKCE · API Gateway (JWT) → async submit+poll Lambda · per-user DynamoDB history</div></div>
+        </div>
+      </div>
+      <div class="flow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v16M6 14l6 6 6-6"/></svg></div>
+      <div class="band">
+        <div class="band-label">Agent</div>
+        <div class="band-body">
+          <div class="node accent"><div class="nt">AgentCore Runtime <span class="tag ro">READ-ONLY</span></div><div class="nd">hosted Strands agent · env baked from SSM · Memory-aware · answers in markdown + charts</div></div>
+        </div>
+      </div>
+      <div class="flow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v16M6 14l6 6 6-6"/></svg></div>
+      <div class="band">
+        <div class="band-label">Model</div>
+        <div class="band-body">
+          <div class="node accent"><div class="nt">Amazon Bedrock</div><div class="nd">Amazon Nova (Converse + tool-use) · POC validated on Claude — see §06</div></div>
+        </div>
+      </div>
+      <div class="flow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v16M6 14l6 6 6-6"/></svg></div>
+      <div class="band">
+        <div class="band-label">Gateway · MCP</div>
+        <div class="band-body">
+          <div class="node accent"><div class="nt">AgentCore Gateway <span class="tag ro">READ-ONLY</span></div><div class="nd">the MCP server · CUSTOM_JWT inbound (Cognito) · GATEWAY_IAM_ROLE outbound · tool schemas per target</div></div>
+        </div>
+      </div>
+      <div class="flow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v16M6 14l6 6 6-6"/></svg></div>
+      <div class="band">
+        <div class="band-label">Tool targets</div>
+        <div class="band-body">
+          <div class="node"><div class="nt">graph_calls <span class="tag new">APPROVED</span></div><div class="nd">2 tools · Lambda</div></div>
+          <div class="node"><div class="nt">webex <span class="tag new">APPROVED</span></div><div class="nd">3 tools · Lambda</div></div>
+          <div class="node ghost"><div class="nt">thousandeyes <span class="tag poc">POC</span></div><div class="nd">4 tools · Lambda</div></div>
+          <div class="node"><div class="nt">correlate</div><div class="nd">1 tool · joins server-side</div></div>
+        </div>
+      </div>
+      <div class="flow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v16M6 14l6 6 6-6"/></svg></div>
+      <div class="band">
+        <div class="band-label">Secrets</div>
+        <div class="band-body">
+          <div class="node"><div class="nt">Secrets Manager</div><div class="nd">graph-app · webex · thousandeyes — read at invoke, cached per-container, never in env or image</div></div>
+        </div>
+      </div>
+      <div class="flow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v16M6 14l6 6 6-6"/></svg></div>
+      <div class="band">
+        <div class="band-label">Upstreams</div>
+        <div class="band-body">
+          <div class="node"><div class="nt">MS Graph callRecords</div><div class="nd">graph.microsoft.com · app-only</div></div>
+          <div class="node"><div class="nt">Cisco Webex</div><div class="nd">Devices / Workspaces API · token</div></div>
+          <div class="node ghost"><div class="nt">Cisco ThousandEyes <span class="tag poc">POC</span></div><div class="nd">api.thousandeyes.com/v7 · Bearer</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3 class="prose">Approval &amp; integration status</h3>
+  <div class="tablewrap">
+    <table>
+      <thead><tr><th>Integration</th><th>ANZ status</th><th>Auth</th><th>What it gives the agent</th></tr></thead>
+      <tbody>
+        <tr><td><strong>Microsoft Teams</strong> (MS Graph)</td><td><span class="pill live">approved</span></td><td>App registration · app-only (<code>CallRecords.Read.All</code>)</td><td>Teams call records + per-session call quality</td></tr>
+        <tr><td><strong>Cisco Webex</strong></td><td><span class="pill live">approved</span></td><td>Integration / service-app API key (read-only)</td><td>Device connection status + workspace environmentals</td></tr>
+        <tr><td><strong>Cisco ThousandEyes</strong></td><td><span class="pill poc">POC · not approved</span></td><td>Bearer token (v7 API)</td><td>Network / voice test results + path visualisation</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ 3 · INTENT ============ -->
+<section>
+  <div class="shead"><div class="snum">03</div><div>
+    <h2>The intent — why we need this</h2>
+    <p class="sdek">Three reasons, in the order that matters to a sponsor.</p>
+  </div></div>
+  <div class="prose">
+    <ul class="clean">
+      <li><strong>It aligns with ANZ's enterprise-AI direction.</strong> This is agentic AI on <em>approved rails</em> — Amazon Bedrock for the model, the agent hosted in-account on AgentCore, identity through Cognito/Entra, secrets in Secrets Manager, and <strong>read-only by construction</strong>. There is no create/update/delete path anywhere in scope. That is the shape of AI a risk and controls function can actually sign off, rather than a shadow tool reaching production systems.</li>
+      <li><strong>It closes a genuine observability gap.</strong> Platform and service health for unified comms is scattered across Teams, Webex and the network layer. Consolidating that ingest behind one MCP surface, and querying it in plain English, turns a multi-console, specialist-only task into a single question anyone can ask — at any time.</li>
+      <li><strong>The pattern is repeatable — that's the real prize.</strong> The Gateway-as-MCP plus web-console pattern is domain-agnostic. Any read-only enterprise data source — infrastructure, security signals, payments telemetry, the service desk — can be onboarded as another <em>tool target</em> and surfaced through the <strong>same AWS-hosted web console</strong>. Prove the model on unified comms; then reuse the Gateway and the console for the next domain without re-litigating the security architecture.</li>
+    </ul>
+    <div class="thesis">
+      <p><strong>The value isn't the three integrations — it's the pattern.</strong> A governed, read-only, in-account agentic-AI front door that any approved data source can plug into, and any stakeholder can query in natural language. Unified comms is the first, defensible proof point.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 4 · TOOL SURFACE ============ -->
+<section class="land">
+  <div class="shead"><div class="snum">04</div><div>
+    <h2>The tool surface — what the MCP actually calls</h2>
+    <p class="sdek">Every call the agent can make is a read-only, GET-shaped tool. Grouped by target; ThousandEyes rows are POC.</p>
+  </div></div>
+  <div class="tablewrap">
+    <table class="wt">
+      <thead><tr><th>Tool</th><th>Target</th><th>Upstream</th><th>Returns</th></tr></thead>
+      <tbody>
+        <tr><td class="num">graph_list_call_records</td><td>graph_calls</td><td>MS Graph</td><td>Teams call records started in a UTC window</td></tr>
+        <tr><td class="num">graph_call_quality</td><td>graph_calls</td><td>MS Graph</td><td>per-session jitter / packet loss / RTT / codec</td></tr>
+        <tr><td class="num">webex_list_devices</td><td>webex</td><td>Webex Devices API</td><td>registered devices + product + connection status</td></tr>
+        <tr><td class="num">webex_device_status</td><td>webex</td><td>Webex Devices API</td><td>per-device connectivity, active interface, IP, software, health</td></tr>
+        <tr><td class="num">webex_workspace_metrics</td><td>webex</td><td>Webex Workspaces API</td><td>per-workspace environmentals — temperature, humidity, ambient noise, people count</td></tr>
+        <tr><td class="num">te_list_tests_alerts</td><td>thousandeyes <span class="pill poc">POC</span></td><td>ThousandEyes v7</td><td>configured tests + active alerts</td></tr>
+        <tr><td class="num">te_network_results</td><td>thousandeyes <span class="pill poc">POC</span></td><td>ThousandEyes v7</td><td>loss / latency / jitter per agent</td></tr>
+        <tr><td class="num">te_voice_results</td><td>thousandeyes <span class="pill poc">POC</span></td><td>ThousandEyes v7</td><td>MOS / jitter / loss / latency (RTP)</td></tr>
+        <tr><td class="num">te_path_visualization</td><td>thousandeyes <span class="pill poc">POC</span></td><td>ThousandEyes v7</td><td>hop-by-hop path with per-hop latency / loss</td></tr>
+        <tr><td class="num">correlate_workspace_calls</td><td>correlate</td><td>joins server-side</td><td>Webex workspace / device health joined to its Teams calls' quality (adds TE path once approved)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="prose"><p>Every tool maps to a single upstream <code>GET</code>. There is no tool that writes, provisions, or changes state — the surface is the security argument made concrete: the worst an over-eager model can do is read something it was already entitled to read.</p></div>
+</section>
+
+<!-- ============ 5 · LOGICAL VIEW ============ -->
+<section>
+  <div class="shead"><div class="snum">05</div><div>
+    <h2>Logical view — one request, end to end</h2>
+    <p class="sdek">The same picture as a lifecycle, so the trust boundaries are explicit.</p>
+  </div></div>
+  <div class="prose">
+    <ul class="clean">
+      <li><strong>Ask.</strong> The stakeholder types plain English into the web console. The web tier mints a JWT and opens a streamable-HTTP MCP session to the Gateway on the user's behalf.</li>
+      <li><strong>Discover.</strong> The model receives the Gateway's <code>tools/list</code> — the tool specs with JSON schemas — as its tool config.</li>
+      <li><strong>Reason + call.</strong> Bedrock (Nova) decides which tools to call. Each call is a JWT-authorised MCP request to the Gateway, which invokes the target Lambda under its own IAM role.</li>
+      <li><strong>Fetch, secretly.</strong> The Lambda reads only <em>its</em> secret from Secrets Manager, calls the upstream, and returns compact JSON. The secret never leaves the function.</li>
+      <li><strong>Answer.</strong> Tool output re-enters the model as untrusted context; the loop repeats until the model stops calling tools, then it returns prose — with the standing instruction that correlation is <em>observational, not causal</em>.</li>
+    </ul>
+    <div class="thesis">
+      <p><strong>Two independent auth hops, by design.</strong> Caller → Gateway is one identity protecting the MCP endpoint. Gateway → Lambda → upstream is per-service secret injection. Collapsing these — e.g. handing a Webex token or the Teams app secret to the browser — is the exact anti-pattern this architecture exists to avoid.</p>
+    </div>
+  </div>
+
+  <p class="pre-cap prose">Credential injection · one pattern per target</p>
+  <pre class="prose"><code><span class="tok-c"># The model never sees any upstream credential. Each Lambda reads only its</span>
+<span class="tok-c"># own secret, calls the upstream, and returns compact JSON.</span>
+<span class="tok-k">def</span> webex_get(path, params=<span class="tok-k">None</span>):
+    sec = get_secret(os.environ[<span class="tok-s">"WEBEX_SECRET_ARN"</span>])        <span class="tok-c"># Secrets Manager</span>
+    status, payload = _http(<span class="tok-s">"GET"</span>, <span class="tok-d">f</span><span class="tok-s">"{WEBEX_BASE}{path}"</span>, {
+        <span class="tok-s">"Authorization"</span>: <span class="tok-d">f</span><span class="tok-s">"Bearer {sec['access_token']}"</span>,   <span class="tok-c"># injected server-side</span>
+        <span class="tok-s">"Accept"</span>: <span class="tok-s">"application/json"</span>,
+    })
+    <span class="tok-k">return</span> payload   <span class="tok-c"># compact — it re-enters the model as untrusted tool output</span></code></pre>
+</section>
+
+<!-- ============ 6 · WATCH-OUTS ============ -->
+<section class="land">
+  <div class="shead"><div class="snum">06</div><div>
+    <h2>Things to look out for &amp; consider</h2>
+    <p class="sdek">Ordered by what a bank's risk and platform teams raise first. Severity: red = block, amber = fix before scale, green = hygiene.</p>
+  </div></div>
+  <div class="tablewrap">
+    <table class="wt">
+      <thead><tr><th>Severity</th><th>Title</th><th>Description</th><th>Action</th><th>Outcome</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="sev crit">block</span></td>
+          <td><strong>Data residency</strong></td>
+          <td>The POC runs in <code>us-east-1</code>. Teams, Webex and network telemetry landing offshore is a sovereignty issue for an ANZ banking audience.</td>
+          <td>Deploy Runtime + Gateway + Bedrock Nova in <code>ap-southeast-2</code> (Sydney); confirm each component's availability in-region.</td>
+          <td>Comms data stays in-country; sovereignty question closed.</td>
+        </tr>
+        <tr>
+          <td><span class="sev crit">block</span></td>
+          <td><strong>Teams grant is tenant-wide</strong></td>
+          <td><code>CallRecords.Read.All</code> is app-only and reads <em>every</em> Teams call in the tenant — effectively an org-wide key. callRecords does not support delegated auth.</td>
+          <td>Use a dedicated app registration used by nothing else; scheduled rotation; Secrets Manager only; document in the risk register with a named owner.</td>
+          <td>A scoped, owned, auditable grant with a known blast radius.</td>
+        </tr>
+        <tr>
+          <td><span class="sev crit">block</span></td>
+          <td><strong>Approved model — validate on Nova</strong></td>
+          <td>The POC ran on Claude; ANZ's approved Bedrock model set may be <strong>Amazon Nova</strong> only. Nova supports tool use, but agentic fidelity on this loop must be proven, not assumed.</td>
+          <td>Run the tool-use loop on Nova (Pro for reasoning, Lite for simple status) and score it against a fixed eval set before committing.</td>
+          <td>Solution runs on an approved model with measured quality.</td>
+        </tr>
+        <tr>
+          <td><span class="sev warn">fix before scale</span></td>
+          <td><strong>ThousandEyes not yet approved</strong></td>
+          <td>TE is a POC axis. It must not carry data in a production path until it clears approval.</td>
+          <td>Keep TE behind a feature flag / non-prod boundary; exclude its Lambda, secret and IAM from the production stack until approved.</td>
+          <td>No unapproved data flow; a clean, staged approval path.</td>
+        </tr>
+        <tr>
+          <td><span class="sev warn">fix before scale</span></td>
+          <td><strong>Single-operator inbound auth won't scale</strong></td>
+          <td>A shared identity / one client is fine for a POC. The moment more than one human or a UI needs access, you need real per-user identity, not shared IAM.</td>
+          <td>Adopt <strong>AgentCore Identity</strong> for per-user inbound OAuth, fronted by Entra SSO, before opening access.</td>
+          <td>Real per-user identity and an audit trail.</td>
+        </tr>
+        <tr>
+          <td><span class="sev warn">fix before scale</span></td>
+          <td><strong>Tool output is untrusted context</strong></td>
+          <td>Upstream strings (device names, call subjects, test labels) re-enter the model — a prompt-injection surface. Low risk on first-party data, non-zero at a bank.</td>
+          <td>Add <strong>Bedrock Guardrails</strong> (PII redaction + injection heuristics); keep tool payloads compact (already done).</td>
+          <td>Reduced injection and PII surface ahead of security review.</td>
+        </tr>
+        <tr>
+          <td><span class="sev warn">fix before scale</span></td>
+          <td><strong>Webex token scope</strong></td>
+          <td>A broad Webex token could read or do more than device/workspace status. Least privilege must be explicit.</td>
+          <td>Scope the Webex integration / service app to read-only device + workspace scopes; store the token in Secrets Manager only.</td>
+          <td>Least-privilege upstream access, defensible in review.</td>
+        </tr>
+        <tr>
+          <td><span class="sev good">hygiene</span></td>
+          <td><strong>Secret cache outlives rotation</strong></td>
+          <td>A per-container cache serves the old secret after rotation until the warm container recycles.</td>
+          <td>Add a short TTL (5–15 min) to the secret cache.</td>
+          <td>Rotation propagates without a cold start or confusing outage.</td>
+        </tr>
+        <tr>
+          <td><span class="sev good">hygiene</span></td>
+          <td><strong>No fleet observability yet</strong></td>
+          <td>Only container stdout today — no per-session traces, tool latency, or token spend across users.</td>
+          <td>Enable <strong>AgentCore Observability</strong> (OTEL → CloudWatch GenAI) — near-zero effort.</td>
+          <td>Traces, latency, token spend and error rates, fleet-wide.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ 7 · OPTIMISATIONS ============ -->
+<section class="land">
+  <div class="shead"><div class="snum">07</div><div>
+    <h2>Optimisations worth doing</h2>
+    <p class="sdek">Cheap wins first. None of these change the read-only contract. Effort as signal bars: 4 green = drop-in, 3 green = a day.</p>
+  </div></div>
+  <div class="tablewrap">
+    <table class="wt">
+      <thead><tr><th>Optimisation</th><th>Effort</th><th>What it does</th><th>Outcome</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><strong>Prompt-cache the static prefix</strong></td>
+          <td><span class="effcell"><span class="bars e1"><i></i><i></i><i></i><i></i></span><span class="el">drop-in</span></span></td>
+          <td>The system prompt and tool schemas are identical every turn; cache that prefix in Bedrock.</td>
+          <td>Materially lower input-token cost on a chatty tool-use loop.</td>
+        </tr>
+        <tr>
+          <td><strong>AgentCore Observability</strong></td>
+          <td><span class="effcell"><span class="bars e1"><i></i><i></i><i></i><i></i></span><span class="el">drop-in</span></span></td>
+          <td>Strands emits OpenTelemetry natively; point it at CloudWatch GenAI.</td>
+          <td>Per-session traces, tool latency and token spend, with no code change.</td>
+        </tr>
+        <tr>
+          <td><strong>Right-size the Nova tier</strong></td>
+          <td><span class="effcell"><span class="bars e2"><i></i><i></i><i></i><i></i></span><span class="el">~a day</span></span></td>
+          <td>Route simple status queries to Nova Lite/Micro, complex correlation to Nova Pro.</td>
+          <td>Lower cost per query without losing quality on the hard questions.</td>
+        </tr>
+        <tr>
+          <td><strong>Gateway semantic tool search</strong></td>
+          <td><span class="effcell"><span class="bars e2"><i></i><i></i><i></i><i></i></span><span class="el">~a day</span></span></td>
+          <td>As targets grow, load only the relevant tools into the prompt instead of the full list.</td>
+          <td>Smaller prompts — lower latency and cost as the estate expands.</td>
+        </tr>
+        <tr>
+          <td><strong>arm64 (Graviton) Lambdas</strong></td>
+          <td><span class="effcell"><span class="bars e2"><i></i><i></i><i></i><i></i></span><span class="el">~a day</span></span></td>
+          <td>Run the pure-Python targets on Graviton via a Linux/CodeBuild build step.</td>
+          <td>~20% cheaper for the same workload, consistent builds.</td>
+        </tr>
+        <tr>
+          <td><strong>Webex via OpenAPI Gateway target</strong></td>
+          <td><span class="effcell"><span class="bars e2"><i></i><i></i><i></i><i></i></span><span class="el">~a day</span></span></td>
+          <td>Wrap the Webex REST API with an OpenAPI spec handed to the Gateway — no handler code.</td>
+          <td>Faster onboarding and less bespoke code to own and secure.</td>
+        </tr>
+        <tr>
+          <td><strong>correlate: TTL cache + parallel fetch</strong></td>
+          <td><span class="effcell"><span class="bars e2"><i></i><i></i><i></i><i></i></span><span class="el">~a day</span></span></td>
+          <td>Cache device/workspace lists and fan out to upstreams concurrently.</td>
+          <td>Shortens the slowest path in the system on correlation queries.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ============ 8 · TOOLSETS TO ADD ============ -->
+<section style="border-bottom:none">
+  <div class="shead"><div class="snum">08</div><div>
+    <h2>Toolsets to add — and complexity for delivery</h2>
+    <p class="sdek">Effort read as signal bars: <strong>4 bars green = drop-in</strong>, 3 green = a day, 2 amber = a sprint, 1 red = a project.</p>
+  </div></div>
+
+  <div class="legend" aria-hidden="true">
+    <span class="li"><span class="bars e1"><i></i><i></i><i></i><i></i></span> drop-in</span>
+    <span class="li"><span class="bars e2"><i></i><i></i><i></i><i></i></span> ~a day</span>
+    <span class="li"><span class="bars e3"><i></i><i></i><i></i><i></i></span> a sprint</span>
+    <span class="li"><span class="bars e4"><i></i><i></i><i></i><i></i></span> a project</span>
+  </div>
+
+  <div class="grid2">
+    <div class="tool">
+      <div class="th"><div><h4>AgentCore Observability</h4><div class="cat">Ops · OTEL → CloudWatch</div></div></div>
+      <p>Dashboards, tracing and token metrics with no code change — Strands is already OTEL-native. The single highest-value add.</p>
+      <div class="foot"><div class="meter"><span class="bars e1"><i></i><i></i><i></i><i></i></span><span class="ml">drop-in</span></div><span class="tpl">→ config template</span></div>
+    </div>
+
+    <div class="tool">
+      <div class="th"><div><h4>Bedrock Guardrails</h4><div class="cat">Safety · PII + injection</div></div></div>
+      <p>Redact PII from tool output and dampen prompt-injection from untrusted upstream strings (§06). A near-requirement before a banking security review.</p>
+      <div class="foot"><div class="meter"><span class="bars e2"><i></i><i></i><i></i><i></i></span><span class="ml">~a day</span></div><span class="tpl">→ guardrail policy</span></div>
+    </div>
+
+    <div class="tool">
+      <div class="th"><div><h4>AgentCore Code Interpreter</h4><div class="cat">Analysis · sandboxed Python</div></div></div>
+      <p>Let the agent <em>compute</em> over correlated data — a real correlation coefficient between Webex workspace noise and Teams jitter — instead of eyeballing it.</p>
+      <div class="foot"><div class="meter"><span class="bars e2"><i></i><i></i><i></i><i></i></span><span class="ml">~a day</span></div><span class="tpl">→ tool-enable template</span></div>
+    </div>
+
+    <div class="tool">
+      <div class="th"><div><h4>Cisco Catalyst Center / Meraki</h4><div class="cat">Source · OpenAPI target</div></div></div>
+      <p>Extend the network axis beyond ThousandEyes — wired/wireless health for the sites the comms estate depends on. Onboarded as an OpenAPI target, no handler code.</p>
+      <div class="foot"><div class="meter"><span class="bars e2"><i></i><i></i><i></i><i></i></span><span class="ml">~a day</span></div><span class="tpl">→ spec + target</span></div>
+    </div>
+
+    <div class="tool">
+      <div class="th"><div><h4>ServiceNow / ITSM</h4><div class="cat">Source · OpenAPI target</div></div></div>
+      <p>Tie comms health to the incident and change record — "is this drop already a known incident, and did a change precede it?" Read-only queries into ITSM.</p>
+      <div class="foot"><div class="meter"><span class="bars e2"><i></i><i></i><i></i><i></i></span><span class="ml">~a day</span></div><span class="tpl">→ spec + target</span></div>
+    </div>
+
+    <div class="tool">
+      <div class="th"><div><h4>ThousandEyes — MCP federation</h4><div class="cat">Source · MCP target</div></div></div>
+      <p>Once TE is approved, federate its hosted MCP instead of the hand-wrapped Lambda. <em>Trade-off:</em> it exposes write verbs, so keep the read-only Lambda or filter capabilities.</p>
+      <div class="foot"><div class="meter"><span class="bars e2"><i></i><i></i><i></i><i></i></span><span class="ml">~a day</span></div><span class="tpl">→ MCP-target template</span></div>
+    </div>
+
+    <div class="tool">
+      <div class="th"><div><h4>AgentCore Identity + Entra SSO</h4><div class="cat">Auth · per-user OAuth</div></div></div>
+      <p>Per-user inbound tokens (replaces single-operator access) and managed outbound OAuth/token refresh. The unlock for multi-user, audited access.</p>
+      <div class="foot"><div class="meter"><span class="bars e3"><i></i><i></i><i></i><i></i></span><span class="ml">a sprint</span></div><span class="tpl">→ identity wiring</span></div>
+    </div>
+
+    <div class="tool">
+      <div class="th"><div><h4>AgentCore Evaluations</h4><div class="cat">Quality · regression tests</div></div></div>
+      <p>A fixed question set scored against expected answers, run on every change — so a model bump (Claude → Nova) or prompt edit can't silently regress a known-good answer.</p>
+      <div class="foot"><div class="meter"><span class="bars e3"><i></i><i></i><i></i><i></i></span><span class="ml">a sprint</span></div><span class="tpl">→ eval-suite template</span></div>
+    </div>
+
+    <div class="tool">
+      <div class="th"><div><h4>Multi-agent (Strands GraphBuilder / A2A)</h4><div class="cat">Scale · agent-to-agent</div></div></div>
+      <p>Split network / workspace / call reasoning into specialist agents behind a supervisor. Powerful, but only earns its keep once the single agent is genuinely overloaded. Start monolithic.</p>
+      <div class="foot"><div class="meter"><span class="bars e4"><i></i><i></i><i></i><i></i></span><span class="ml">a project</span></div><span class="tpl">→ later</span></div>
+    </div>
+  </div>
+
+  <div class="prose"><p class="hr-note">Each toolset above is an <code>agent/</code> or <code>infra/</code> drop-in matched to the existing repo conventions (SAM for Lambda / Cognito, boto3 scripts for AgentCore resources). The three current integrations — Teams, Webex, and the ThousandEyes POC — already follow this exact pattern, which is why a fourth source is a day's work, not a rebuild.</p></div>
+</section>
+
+</main>
+
+<footer class="wrap">
+  <p><strong>AWS Bedrock AgentCore — Unified Communications Observability.</strong> Prepared for ANZ. Architecture and status reflect the deployed proof-of-concept; ThousandEyes is a non-approved POC axis shown for completeness. Model shown as Amazon Nova (target); the POC was validated on Claude — model selection is an open decision (§06).</p>
+  <div class="refs">
+    <a href="https://aws.amazon.com/bedrock/agentcore/">Amazon Bedrock AgentCore — overview</a>
+    <a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway.html">AgentCore Gateway concepts</a>
+    <a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-schema-openapi.html">Gateway OpenAPI targets</a>
+    <a href="https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/observability.html">AgentCore Observability</a>
+    <a href="https://aws.amazon.com/bedrock/agentcore/pricing/">AgentCore pricing</a>
+    <a href="https://developer.webex.com/docs/api/v1/devices">Cisco Webex — Devices API</a>
+    <a href="https://developer.webex.com/docs/api/v1/workspaces">Cisco Webex — Workspaces API</a>
+    <a href="https://learn.microsoft.com/en-us/graph/api/resources/callrecords-api-overview">MS Graph — callRecords API</a>
+    <a href="https://developer.cisco.com/docs/thousandeyes/">Cisco ThousandEyes — v7 API</a>
+    <a href="https://strandsagents.com/docs/user-guide/deploy/deploy_to_bedrock_agentcore/">Deploy Strands to AgentCore Runtime</a>
+  </div>
+  <p class="hr-note">Styling and signal-bar language inherited from the neat-graph-bedrock reference architecture. No account or resource identifiers are included in this document.</p>
+</footer>
